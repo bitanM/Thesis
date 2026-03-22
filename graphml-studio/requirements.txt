@@ -1,0 +1,11 @@
+pandas
+numpy
+torch
+transformers
+scikit-learn
+tqdm
+matplotlib
+openpyxl
+python-Levenshtein
+deep-translator
+ollama

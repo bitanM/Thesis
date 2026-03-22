@@ -1,0 +1,12 @@
+{
+  "documents": 1084447,
+  "tokens_total": 13529728,
+  "vocab_tfidf": 14036,
+  "vocab_final": 14033,
+  "edges_raw": 995117,
+  "edges_pruned": 995117,
+  "density_raw": 0.010107274017158285,
+  "density_pruned": 0.010107274017158285,
+  "disparity_alpha": 0.99,
+  "window": 5
+}
