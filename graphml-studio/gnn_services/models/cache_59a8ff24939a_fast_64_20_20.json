@@ -1,0 +1,1 @@
+{"graph_hash": "59a8ff24939a_fast_64_20_20", "mode": "fast", "hidden": 64, "lp_out": 64, "nc_epochs": 20, "lp_epochs": 20, "nodes": 179, "edges": 744, "communities": 9, "nc_metrics": {"accuracy": 0.1944, "macro_f1": 0.1143, "epochs_trained": 20}, "lp_metrics": {"auc_roc": 0.6912, "avg_precision": 0.6902, "epochs_trained": 20}, "trained_at": "2026-03-23T11:53:51.858586Z"}

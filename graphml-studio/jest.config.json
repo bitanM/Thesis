@@ -1,0 +1,20 @@
+{
+  "testEnvironment": "node",
+  "testMatch": [
+    "**/?(*.)+(spec|test).[jt]s?(x)",
+    "**/tests/**/*.test.js"
+  ],
+  "testTimeout": 30000,
+  "verbose": true,
+  "transform": {
+    "^.+\\.js$": "babel-jest"
+  },
+  "transformIgnorePatterns": [],
+  "moduleNameMapper": {
+    "networkanalysis-ts": "<rootDir>/tests/__mocks__/networkanalysis-ts.js",
+    "graphology-communities-louvain": "<rootDir>/tests/__mocks__/graphology-communities-louvain.js"
+  },
+  "roots": [
+    "<rootDir>/tests"
+  ]
+}

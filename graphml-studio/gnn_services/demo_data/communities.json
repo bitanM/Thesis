@@ -1,0 +1,50 @@
+{
+  "themes": {
+    "0": "Counter-Narrative / Fringe",
+    "1": "International Amplification",
+    "2": "Systemic Critique (Adani/Ambani)",
+    "3": "Celebrity Discourse (MIA/Rihanna)",
+    "4": "Farm Law & MSP Policy",
+    "5": "Core Protest Vocabulary",
+    "6": "Agricultural Heritage / Ethos",
+    "7": "Media Criticism & Khalistan Framing",
+    "8": "Cross-Movement Solidarity (CAA/NRC)",
+    "9": "Ground-Level Geography (Delhi/Punjab)",
+    "10": "Tech & Climate Crossover",
+    "11": "Political Opposition (BJP/RSS)",
+    "12": "Viral Mechanics (Hashtag/Retweet)",
+    "13": "Punjabi / Sikh Identity",
+    "14": "Democratic Grievances & Slogans"
+  },
+  "colors": {
+    "0": "#1f77b4",
+    "1": "#aec7e8",
+    "2": "#ffbb78",
+    "3": "#2ca02c",
+    "4": "#98df8a",
+    "5": "#d62728",
+    "6": "#ff9896",
+    "7": "#9467bd",
+    "8": "#c5b0d5",
+    "9": "#8c564b",
+    "10": "#c49c94",
+    "11": "#e377c2",
+    "12": "#f7b6d2",
+    "13": "#7f7f7f",
+    "14": "#bcbd22"
+  },
+  "dataset": "Farmer's Protest Twitter Corpus (2020-2021)",
+  "nodes": 14033,
+  "edges": 995117,
+  "algorithm": "Louvain (NetworkX, weight='weight', seed=42)",
+  "nc_metrics": {
+    "accuracy": 0.4184,
+    "macro_f1": 0.2059,
+    "vs_baseline_acc": "+37.1%",
+    "vs_baseline_f1": "+394.9%"
+  },
+  "lp_metrics": {
+    "auc_roc": 0.7697,
+    "avg_precision": 0.7301
+  }
+}

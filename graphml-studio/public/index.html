@@ -4,470 +4,995 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GraphML Studio</title>
-<!-- Notice: We removed PapaParse because the Node.js backend handles CSV parsing now! -->
 <script src="https://unpkg.com/vis-data@7.1.9/peer/umd/vis-data.min.js"></script>
 <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,300&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:ital,wght@0,300;0,500;0,700;1,300&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg:        #0a0e1a;
-    --bg2:       #111827;
-    --bg3:       #1a2235;
-    --bg4:       #212d44;
-    --border:    #2a3a55;
-    --border2:   #374a6a;
-    --text:      #e2e8f4;
-    --text2:     #8fa3c0;
-    --text3:     #5a7090;
-    --accent:    #38bdf8;
-    --accent2:   #0ea5e9;
-    --green:     #34d399;
-    --amber:     #fbbf24;
-    --red:       #f87171;
-    --purple:    #a78bfa;
-    --pink:      #f472b6;
-    --grad:      linear-gradient(135deg, #38bdf8 0%, #a78bfa 100%);
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
-  body::before { content: ''; position: fixed; inset: 0; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E"); pointer-events: none; z-index: 0; }
-  .topbar { position: sticky; top: 0; z-index: 100; background: rgba(10,14,26,0.92); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); padding: 0 2rem; height: 56px; display: flex; align-items: center; justify-content: space-between; }
-  .logo { font-family: 'Space Mono', monospace; font-size: 1rem; font-weight: 700; background: var(--grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: -0.02em; }
-  .logo span { opacity: 0.5; -webkit-text-fill-color: var(--text2); }
-  .topbar-meta { font-family: 'Space Mono', monospace; font-size: 0.65rem; color: var(--text3); display: flex; gap: 1.5rem; align-items: center; }
-  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); display: inline-block; margin-right: 6px; transition: background 0.3s; }
-  .status-dot.active { background: var(--green); box-shadow: 0 0 8px var(--green); }
-  .app { display: grid; grid-template-columns: 300px 1fr 320px; grid-template-rows: calc(100vh - 56px); position: relative; z-index: 1; }
-  .panel { background: var(--bg2); border-right: 1px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; }
-  .panel:last-child { border-right: none; border-left: 1px solid var(--border); }
-  .panel-header { padding: 1.25rem 1.25rem 0.75rem; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; background: var(--bg2); }
-  .panel-title { font-family: 'Space Mono', monospace; font-size: 0.7rem; font-weight: 700; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; }
-  .panel-sub { font-size: 0.78rem; color: var(--text2); margin-top: 2px; }
-  .upload-zone { margin: 1rem; border: 1.5px dashed var(--border2); border-radius: 10px; padding: 1.5rem 1rem; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--bg3); position: relative; overflow: hidden; }
-  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(56,189,248,0.05); }
-  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-  .upload-icon { font-size: 1.8rem; margin-bottom: 0.5rem; }
-  .upload-title { font-size: 0.82rem; font-weight: 500; color: var(--text); }
-  .upload-hint { font-size: 0.72rem; color: var(--text3); margin-top: 4px; font-family: 'Space Mono', monospace; }
-  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; padding: 0.75rem 1rem; }
-  .stat-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 0.65rem 0.75rem; transition: border-color 0.2s; }
-  .stat-card:hover { border-color: var(--border2); }
-  .stat-val { font-family: 'Space Mono', monospace; font-size: 1.25rem; font-weight: 700; background: var(--grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-  .stat-label { font-size: 0.68rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 1px; }
-  .section { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
-  .section-label { font-family: 'Space Mono', monospace; font-size: 0.65rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.6rem; }
-  .task-btn { width: 100%; display: flex; align-items: center; gap: 0.75rem; padding: 0.7rem 0.9rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 0.82rem; font-weight: 500; margin-bottom: 0.45rem; transition: all 0.15s; text-align: left; }
-  .task-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: rgba(56,189,248,0.07); }
-  .task-btn.active { border-color: var(--accent); background: rgba(56,189,248,0.12); color: var(--accent); }
-  .task-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-  .task-icon { font-size: 1rem; flex-shrink: 0; }
-  .task-info { flex: 1; }
-  .task-name { font-weight: 600; }
-  .task-desc { font-size: 0.7rem; color: var(--text3); margin-top: 1px; }
-  .task-badge { font-family: 'Space Mono', monospace; font-size: 0.58rem; padding: 2px 6px; border-radius: 4px; background: var(--bg4); color: var(--text3); }
-  .graph-panel { background: var(--bg); position: relative; display: flex; flex-direction: column; }
-  .graph-toolbar { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background: rgba(17,24,39,0.8); border-bottom: 1px solid var(--border); backdrop-filter: blur(10px); }
-  .toolbar-btn { padding: 0.3rem 0.7rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 5px; color: var(--text2); font-size: 0.72rem; font-family: 'Space Mono', monospace; cursor: pointer; transition: all 0.15s; }
-  .toolbar-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .toolbar-sep { width: 1px; height: 20px; background: var(--border); margin: 0 0.25rem; }
-  .graph-container { flex: 1; position: relative; }
-  #graph-vis { width: 100%; height: 100%; }
-  .graph-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; }
-  .placeholder-art { width: 180px; height: 180px; position: relative; opacity: 0.15; }
-  .placeholder-art svg { width: 100%; height: 100%; }
-  .placeholder-text { text-align: center; }
-  .placeholder-text h3 { font-size: 1rem; color: var(--text2); font-weight: 500; }
-  .placeholder-text p { font-size: 0.78rem; color: var(--text3); margin-top: 4px; }
-  .results-panel { background: var(--bg2); display: flex; flex-direction: column; }
-  .algo-controls { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
-  .algo-tab-row { display: flex; gap: 0.35rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
-  .algo-tab { padding: 0.28rem 0.65rem; font-size: 0.7rem; font-family: 'Space Mono', monospace; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; color: var(--text2); transition: all 0.15s; }
-  .algo-tab.active { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 700; }
-  .algo-tab:hover:not(.active) { border-color: var(--border2); color: var(--text); }
-  .run-btn { width: 100%; padding: 0.6rem; background: var(--grad); border: none; border-radius: 7px; cursor: pointer; font-family: 'Space Mono', monospace; font-size: 0.75rem; font-weight: 700; color: var(--bg); letter-spacing: 0.05em; transition: opacity 0.15s, transform 0.1s; }
-  .run-btn:hover { opacity: 0.88; transform: translateY(-1px); }
-  .run-btn:active { transform: translateY(0); }
-  .run-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-  .run-btn.secondary { background: var(--bg4); color: var(--text); border: 1px solid var(--border); }
-  .run-btn.secondary:hover { opacity: 1; border-color: var(--border2); }
-  .field-group { margin-bottom: 0.6rem; }
-  .field-label { font-size: 0.68rem; color: var(--text3); font-family: 'Space Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
-  .field-input { width: 100%; padding: 0.45rem 0.65rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.8rem; font-family: 'DM Sans', sans-serif; outline: none; transition: border-color 0.15s; }
-  .field-input:focus { border-color: var(--accent); }
-  .results-body { flex: 1; overflow-y: auto; padding: 0.75rem 1rem; }
-  .results-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; gap: 0.5rem; }
-  .results-empty-icon { font-size: 2rem; opacity: 0.2; }
-  .results-empty-text { font-size: 0.78rem; color: var(--text3); text-align: center; }
-  .result-item { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.65rem; background: var(--bg3); border: 1px solid var(--border); border-radius: 7px; margin-bottom: 0.4rem; transition: border-color 0.15s; }
-  .result-item:hover { border-color: var(--border2); }
-  .tab-content { display: none; }
-  .tab-content.active { display: block; }
-  .pred-result-box { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-top: 0.5rem; }
-  .pred-title { font-size: 0.7rem; color: var(--text3); font-family: 'Space Mono', monospace; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.5rem; }
-  .pred-main { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.3rem; }
-  .pred-conf { font-size: 0.75rem; color: var(--text2); }
-  #toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%); background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; padding: 0.6rem 1.2rem; font-size: 0.8rem; color: var(--text); box-shadow: 0 8px 32px rgba(0,0,0,0.4); z-index: 1000; pointer-events: none; transition: opacity 0.3s; font-family: 'Space Mono', monospace; }
-  #toast.hidden { opacity: 0; }
-  .spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; margin-right: 6px; vertical-align: middle; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .inline-note { font-size: 0.7rem; color: var(--text3); font-style: italic; padding: 0.4rem 0; font-family: 'DM Sans', sans-serif; }
+:root {
+  --bg:       #07080f;
+  --bg2:      #0d0f1c;
+  --bg3:      #131628;
+  --bg4:      #1a1f35;
+  --bg5:      #212845;
+  --border:   #1e2440;
+  --border2:  #2a3260;
+  --text:     #dde4f5;
+  --text2:    #7b8ab8;
+  --text3:    #3d4a72;
+  --accent:   #4f8ef7;
+  --accent2:  #2563eb;
+  --green:    #22d3a0;
+  --amber:    #f59e0b;
+  --red:      #f43f5e;
+  --purple:   #8b5cf6;
+  --cyan:     #06b6d4;
+  --grad:     linear-gradient(135deg, #4f8ef7 0%, #8b5cf6 100%);
+  --grad2:    linear-gradient(135deg, #22d3a0 0%, #06b6d4 100%);
+  --topbar-h: 52px;
+  --menubar-h: 48px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html, body{height:100%;}
+body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow:hidden;}
+
+/* ── TOPBAR ── */
+.topbar{position:sticky;top:0;z-index:200;height:var(--topbar-h);background:rgba(7,8,15,0.95);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 1.25rem;}
+.logo{font-family:'IBM Plex Mono',monospace;font-size:0.95rem;font-weight:600;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-0.03em;}
+.topbar-right{display:flex;align-items:center;gap:1rem;}
+.gnn-badge{display:flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:0.62rem;color:var(--text3);padding:3px 10px;border:1px solid var(--border);border-radius:20px;transition:all 0.3s;}
+.gnn-badge.online{color:var(--green);border-color:rgba(34,211,160,0.3);background:rgba(34,211,160,0.06);}
+.gnn-badge.online .dot{background:var(--green);box-shadow:0 0 6px var(--green);}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--text3);}
+.topbar-meta{font-family:'IBM Plex Mono',monospace;font-size:0.62rem;color:var(--text3);display:flex;gap:1.25rem;}
+
+/* ── LAYOUT ── */
+.menubar{height:var(--menubar-h);display:flex;align-items:center;gap:0.6rem;padding:0 0.75rem;background:var(--bg2);border-bottom:1px solid var(--border);position:sticky;top:var(--topbar-h);z-index:150;}
+.menu-group{display:flex;align-items:center;gap:0.35rem;padding-right:0.65rem;border-right:1px solid var(--border);}
+.menu-group:last-child{border-right:none;}
+.menu-label{font-family:'IBM Plex Mono',monospace;font-size:0.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-right:0.2rem;}
+.menu-btn{padding:0.28rem 0.55rem;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text2);font-size:0.67rem;font-family:'IBM Plex Mono',monospace;cursor:pointer;transition:all 0.15s;white-space:nowrap;}
+.menu-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}
+.menu-btn.active{border-color:var(--accent);background:rgba(79,142,247,0.15);color:var(--accent);}
+.menu-btn:disabled{opacity:0.35;cursor:not-allowed;}
+.menu-btn.danger{border-color:rgba(244,63,94,0.4);color:var(--red);}
+.menu-btn.danger:hover:not(:disabled){border-color:var(--red);color:var(--red);}
+.menu-search{position:relative;}
+.menu-input{width:190px;padding:0.3rem 0.55rem;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.67rem;font-family:'IBM Plex Sans',sans-serif;outline:none;}
+.menu-input:focus{border-color:var(--accent);}
+.menu-results{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--bg3);border:1px solid var(--border);border-radius:6px;max-height:220px;overflow-y:auto;z-index:400;display:none;padding:0.3rem;margin-top:0;}
+.menu-results.show{display:block;}
+
+.app{display:grid;grid-template-columns:minmax(0,1fr) 360px;grid-template-rows:1fr;height:calc(100vh - var(--topbar-h) - var(--menubar-h));min-height:0;}
+
+/* ── LEFT PANEL ── */
+.lpanel{background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;min-height:0;}
+.lpanel-header{padding:1rem 1rem 0.6rem;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg2);z-index:10;}
+.panel-title{font-family:'IBM Plex Mono',monospace;font-size:0.6rem;font-weight:600;color:var(--text3);letter-spacing:0.12em;text-transform:uppercase;}
+.panel-sub{font-size:0.75rem;color:var(--text2);margin-top:2px;}
+
+/* ── DEMO BANNER ── */
+.demo-banner{margin:0.75rem;border-radius:10px;padding:0.85rem 1rem;background:linear-gradient(135deg,rgba(79,142,247,0.12),rgba(139,92,246,0.12));border:1px solid rgba(79,142,247,0.25);cursor:pointer;transition:all 0.2s;}
+.demo-banner:hover{border-color:rgba(79,142,247,0.5);background:linear-gradient(135deg,rgba(79,142,247,0.18),rgba(139,92,246,0.18));}
+.demo-banner-title{font-family:'IBM Plex Mono',monospace;font-size:0.7rem;font-weight:600;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.demo-banner-sub{font-size:0.72rem;color:var(--text2);margin-top:3px;}
+.demo-btn{width:100%;margin-top:0.6rem;padding:0.45rem;background:var(--grad);border:none;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:0.68rem;font-weight:600;color:#fff;cursor:pointer;letter-spacing:0.05em;transition:opacity 0.15s;}
+.demo-btn:hover{opacity:0.85;}
+.demo-btn:disabled{opacity:0.4;cursor:not-allowed;}
+
+/* ── UPLOAD ── */
+.upload-zone{margin:0.6rem 0.75rem;border:1.5px dashed var(--border2);border-radius:9px;padding:1.1rem 0.75rem;text-align:center;cursor:pointer;transition:all 0.2s;background:var(--bg3);position:relative;overflow:hidden;}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--accent);background:rgba(79,142,247,0.06);}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+.upload-icon{font-size:1.4rem;margin-bottom:4px;}
+.upload-title{font-size:0.78rem;font-weight:500;}
+.upload-hint{font-size:0.66rem;color:var(--text3);margin-top:3px;font-family:'IBM Plex Mono',monospace;}
+
+/* ── STATS ── */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;padding:0 0.75rem 0.6rem;}
+.stat-card{background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:0.55rem 0.7rem;}
+.stat-val{font-family:'IBM Plex Mono',monospace;font-size:1.1rem;font-weight:600;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.stat-label{font-size:0.62rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-top:1px;}
+
+/* ── TASKS ── */
+.section{padding:0.5rem 0.75rem;border-bottom:1px solid var(--border);}
+.section-label{font-family:'IBM Plex Mono',monospace;font-size:0.6rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.5rem;}
+.task-btn{width:100%;display:flex;align-items:center;gap:0.6rem;padding:0.6rem 0.75rem;background:var(--bg3);border:1px solid var(--border);border-radius:7px;cursor:pointer;color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:0.78rem;font-weight:500;margin-bottom:0.35rem;transition:all 0.15s;text-align:left;}
+.task-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent);background:rgba(79,142,247,0.07);}
+.task-btn.active{border-color:var(--accent);background:rgba(79,142,247,0.12);color:var(--accent);}
+.task-btn:disabled{opacity:0.3;cursor:not-allowed;}
+.task-icon{font-size:0.9rem;flex-shrink:0;}
+.task-info{flex:1;}
+.task-name{font-weight:600;font-size:0.76rem;}
+.task-desc{font-size:0.65rem;color:var(--text3);margin-top:1px;}
+.task-badge{font-family:'IBM Plex Mono',monospace;font-size:0.55rem;padding:2px 5px;border-radius:3px;background:var(--bg4);color:var(--text3);}
+.task-badge.gnn{background:rgba(139,92,246,0.2);color:var(--purple);}
+
+/* ── NODE SEARCH ── */
+.search-box{padding:0.6rem 0.75rem;border-bottom:1px solid var(--border);}
+.search-input-wrap{position:relative;}
+.search-input{width:100%;padding:0.45rem 0.7rem 0.45rem 2rem;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.78rem;font-family:'IBM Plex Sans',sans-serif;outline:none;transition:border-color 0.15s;}
+.search-input:focus{border-color:var(--accent);}
+.search-icon{position:absolute;left:0.55rem;top:50%;transform:translateY(-50%);font-size:0.75rem;pointer-events:none;}
+.search-results{margin-top:0.4rem;max-height:160px;overflow-y:auto;}
+.search-result-item{display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.5rem;border-radius:5px;cursor:pointer;transition:background 0.1s;}
+.search-result-item:hover{background:var(--bg4);}
+.search-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.search-term{font-family:'IBM Plex Mono',monospace;font-size:0.72rem;font-weight:600;flex:1;}
+.search-theme{font-size:0.62rem;color:var(--text3);}
+
+/* ── CENTER: GRAPH ── */
+.graph-panel{background:var(--bg);position:relative;display:flex;flex-direction:column;min-height:0;height:100%;}
+.graph-toolbar{display:flex;align-items:center;gap:0.4rem;padding:0.4rem 0.85rem;background:rgba(13,15,28,0.9);border-bottom:1px solid var(--border);backdrop-filter:blur(10px);flex-wrap:wrap;}
+.toolbar-btn{padding:0.25rem 0.6rem;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text2);font-size:0.67rem;font-family:'IBM Plex Mono',monospace;cursor:pointer;transition:all 0.15s;white-space:nowrap;}
+.toolbar-btn:hover{border-color:var(--accent);color:var(--accent);}
+.toolbar-btn.active{border-color:var(--accent);background:rgba(79,142,247,0.15);color:var(--accent);}
+.toolbar-sep{width:1px;height:18px;background:var(--border);}
+.view-tabs{display:flex;gap:3px;}
+.view-tab{padding:0.25rem 0.6rem;background:transparent;border:1px solid transparent;border-radius:4px;color:var(--text3);font-size:0.67rem;font-family:'IBM Plex Mono',monospace;cursor:pointer;transition:all 0.15s;}
+.view-tab.active{background:var(--bg4);border-color:var(--border2);color:var(--text);}
+.view-tab:hover:not(.active){color:var(--text2);}
+
+.graph-container{flex:1;position:relative;min-height:0;height:100%;}
+#graph-drop.drag{outline:2px dashed var(--accent);background:rgba(79,142,247,0.06);}
+#graph-vis{width:100%;height:100%;min-height:360px;}
+
+/* ── t-SNE PANEL ── */
+#tsne-panel{width:100%;height:100%;display:none;flex-direction:column;}
+#tsne-canvas{flex:1;width:100%;background:var(--bg);}
+.tsne-legend{padding:0.5rem 0.75rem;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:0.4rem;max-height:80px;overflow-y:auto;background:var(--bg2);}
+.tsne-legend-item{display:flex;align-items:center;gap:4px;font-size:0.62rem;color:var(--text2);cursor:pointer;padding:2px 6px;border-radius:3px;transition:background 0.1s;}
+.tsne-legend-item:hover{background:var(--bg4);}
+.tsne-legend-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+
+/* ── PLACEHOLDER ── */
+.graph-placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;pointer-events:none;}
+.placeholder-art{opacity:0.1;}
+.placeholder-text h3{font-size:0.95rem;color:var(--text2);font-weight:500;}
+.placeholder-text p{font-size:0.72rem;color:var(--text3);margin-top:4px;text-align:center;}
+
+/* ── RIGHT PANEL ── */
+.rpanel{background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;min-height:0;height:100%;}
+.rpanel-body{flex:1;overflow-y:auto;min-height:0;}
+.rpanel-header{padding:0.85rem 1rem 0.5rem;border-bottom:1px solid var(--border);background:var(--bg2);}
+.tab-content{display:none;flex:1;overflow-y:auto;min-height:0;}
+.tab-content.active{display:flex;flex-direction:column;}
+
+/* ── COMMUNITY PANEL ── */
+.algo-controls{padding:0.65rem 0.85rem;border-bottom:1px solid var(--border);}
+.algo-tab-row{display:flex;gap:0.3rem;margin-bottom:0.6rem;flex-wrap:wrap;}
+.algo-tab{padding:0.25rem 0.55rem;font-size:0.65rem;font-family:'IBM Plex Mono',monospace;background:var(--bg3);border:1px solid var(--border);border-radius:3px;cursor:pointer;color:var(--text2);transition:all 0.15s;}
+.algo-tab.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
+.run-btn{width:100%;padding:0.5rem;background:var(--grad);border:none;border-radius:6px;cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:0.68rem;font-weight:600;color:#fff;letter-spacing:0.05em;transition:opacity 0.15s,transform 0.1s;margin-bottom:0.35rem;}
+.run-btn:hover{opacity:0.85;transform:translateY(-1px);}
+.run-btn:disabled{opacity:0.35;cursor:not-allowed;transform:none;}
+.run-btn.secondary{background:var(--bg4);color:var(--text);border:1px solid var(--border);}
+.results-body{flex:1;overflow-y:auto;padding:0.6rem 0.85rem;}
+.results-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:180px;gap:0.4rem;}
+.results-empty-icon{font-size:1.8rem;opacity:0.2;}
+.results-empty-text{font-size:0.72rem;color:var(--text3);text-align:center;}
+
+/* ── COMMUNITY CARD ── */
+.comm-card{border-radius:8px;margin-bottom:0.5rem;border:1px solid var(--border);overflow:hidden;transition:border-color 0.15s;cursor:pointer;}
+.comm-card:hover{border-color:var(--border2);}
+.comm-card.expanded{border-color:var(--border2);}
+.comm-card-header{display:flex;align-items:center;gap:0.6rem;padding:0.55rem 0.7rem;background:var(--bg3);}
+.comm-color-bar{width:3px;height:32px;border-radius:2px;flex-shrink:0;}
+.comm-info{flex:1;min-width:0;}
+.comm-theme{font-size:0.75rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.comm-meta{font-size:0.62rem;color:var(--text3);margin-top:1px;font-family:'IBM Plex Mono',monospace;}
+.comm-size-badge{font-family:'IBM Plex Mono',monospace;font-size:0.6rem;padding:2px 6px;border-radius:3px;background:var(--bg4);color:var(--text3);flex-shrink:0;}
+.comm-words{padding:0.5rem 0.7rem;background:var(--bg2);display:none;flex-wrap:wrap;gap:0.3rem;}
+.comm-card.expanded .comm-words{display:flex;}
+.word-chip{font-family:'IBM Plex Mono',monospace;font-size:0.62rem;padding:2px 7px;border-radius:3px;background:var(--bg4);color:var(--text2);border:1px solid var(--border);}
+
+/* ── RESULT ITEMS ── */
+.result-item{display:flex;align-items:center;justify-content:space-between;padding:0.45rem 0.6rem;background:var(--bg3);border:1px solid var(--border);border-radius:6px;margin-bottom:0.35rem;transition:border-color 0.15s;}
+.result-item:hover{border-color:var(--border2);}
+
+/* ── GNN RESULTS ── */
+.gnn-result-box{background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:0.85rem;margin-bottom:0.5rem;}
+.gnn-result-title{font-size:0.62rem;color:var(--text3);font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.45rem;}
+.gnn-result-main{font-size:1rem;font-weight:700;margin-bottom:0.2rem;}
+.gnn-result-sub{font-size:0.72rem;color:var(--text2);}
+.prob-bar{height:4px;background:var(--bg4);border-radius:2px;margin-top:0.4rem;overflow:hidden;}
+.prob-fill{height:100%;border-radius:2px;background:var(--grad);transition:width 0.5s ease;}
+.top5-row{display:flex;align-items:center;gap:0.5rem;padding:0.3rem 0;border-bottom:1px solid var(--border);}
+.top5-row:last-child{border-bottom:none;}
+.top5-comm{font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:var(--text2);width:22px;flex-shrink:0;}
+.top5-theme{font-size:0.68rem;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.top5-prob{font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:var(--accent);}
+
+/* ── FIELD ── */
+.field-group{margin-bottom:0.5rem;}
+.field-label{font-size:0.62rem;color:var(--text3);font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px;}
+.field-input{width:100%;padding:0.4rem 0.6rem;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:0.76rem;font-family:'IBM Plex Sans',sans-serif;outline:none;transition:border-color 0.15s;}
+.field-input:focus{border-color:var(--accent);}
+
+/* ── DEMO MODE BADGE ── */
+.demo-mode-tag{display:inline-flex;align-items:center;gap:4px;font-family:'IBM Plex Mono',monospace;font-size:0.58rem;padding:2px 8px;border-radius:3px;background:linear-gradient(135deg,rgba(79,142,247,0.2),rgba(139,92,246,0.2));border:1px solid rgba(79,142,247,0.3);color:var(--accent);margin-left:6px;}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:1.25rem;left:50%;transform:translateX(-50%) translateY(8px);background:var(--bg3);border:1px solid var(--border2);border-radius:7px;padding:0.5rem 1.1rem;font-size:0.75rem;color:var(--text);box-shadow:0 8px 32px rgba(0,0,0,0.5);z-index:1000;pointer-events:none;transition:opacity 0.3s,transform 0.3s;font-family:'IBM Plex Mono',monospace;opacity:0;}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* ── SPINNER ── */
+.spinner{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;display:inline-block;margin-right:5px;vertical-align:middle;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+
+.inline-note{font-size:0.67rem;color:var(--text3);font-style:italic;padding:0.3rem 0;line-height:1.4;}
 </style>
 </head>
 <body>
 
 <!-- TOPBAR -->
 <div class="topbar">
-  <div class="logo">Graph<span>ML</span> Studio</div>
-  <div class="topbar-meta">
-    <span><span class="status-dot" id="status-dot"></span><span id="status-txt">No graph loaded</span></span>
-    <span id="meta-nodes">— nodes</span>
-    <span id="meta-edges">— edges</span>
+  <div class="logo">GraphML Studio</div>
+  <div class="topbar-right">
+    <div class="gnn-badge" id="gnn-badge"><span class="dot"></span><span id="gnn-badge-txt">GNN offline</span></div>
+    <div class="topbar-meta">
+      <span id="meta-nodes">— nodes</span>
+      <span id="meta-edges">— edges</span>
+      <span id="meta-mode"></span>
+    </div>
   </div>
 </div>
 
-<!-- APP -->
+<!-- MENU BAR -->
+<div class="menubar">
+  <div class="menu-group">
+    <span class="menu-label">File</span>
+    <button class="menu-btn" id="menu-upload-btn">Upload CSV</button>
+    <button class="menu-btn" id="demo-load-btn" onclick="loadDemo()">Load Demo</button>
+    <input type="file" id="csv-input" accept=".csv" hidden>
+  </div>
+  <div class="menu-group">
+    <span class="menu-label">View</span>
+    <button class="menu-btn active" id="tab-graph" onclick="switchView('graph')">Graph</button>
+    <button class="menu-btn" id="tab-tsne" onclick="switchView('tsne')">t-SNE</button>
+    <button class="menu-btn" onclick="network && network.fit()">Fit</button>
+    <button class="menu-btn" id="toggle-labels-btn" onclick="toggleLabels()">Labels ON</button>
+    <button class="menu-btn" id="color-comm-btn" onclick="colorByCommunity()" disabled>Color Communities</button>
+    <button class="menu-btn" id="load-tsne-btn" onclick="loadTSNE()" disabled>Load t-SNE</button>
+  </div>
+  <div class="menu-group">
+    <span class="menu-label">Analysis</span>
+    <button class="menu-btn" id="task-community" onclick="selectTask('community')" disabled>Community</button>
+    <button class="menu-btn" id="task-centrality" onclick="selectTask('centrality')" disabled>Centrality</button>
+  </div>
+  <div class="menu-group">
+    <span class="menu-label">GNN</span>
+    <button class="menu-btn" id="train-gnn-btn" onclick="trainGNN()" disabled>Train GNN</button>
+    <button class="menu-btn" id="task-node-pred" onclick="selectTask('node-pred')" disabled>Node Classify</button>
+    <button class="menu-btn" id="task-edge-pred" onclick="selectTask('edge-pred')" disabled>Link Predict</button>
+  </div>
+  <div class="menu-group">
+    <span class="menu-label">Search</span>
+    <div class="menu-search" id="menu-search-wrap">
+      <input class="menu-input" type="text" id="node-search-input"
+             placeholder="Search node..." oninput="onSearchInput(this.value)">
+      <div class="menu-results search-results" id="search-results"></div>
+    </div>
+  </div>
+  <div class="menu-group">
+    <button class="menu-btn danger" onclick="resetAll()">Reset</button>
+  </div>
+</div>
+
 <div class="app">
 
-  <!-- LEFT PANEL: Controls -->
-  <div class="panel" id="left-panel">
-    <div class="panel-header">
-      <div class="panel-title">Input & Tasks</div>
-      <div class="panel-sub">Load a CSV, then run analysis</div>
+<!-- CENTER: GRAPH -->
+<div class="graph-panel">
+  <div class="graph-container" id="graph-drop">
+    <!-- Graph view -->
+    <div id="graph-vis"></div>
+
+    <!-- t-SNE view -->
+    <div id="tsne-panel">
+      <canvas id="tsne-canvas"></canvas>
+      <div class="tsne-legend" id="tsne-legend"></div>
     </div>
 
-    <!-- Upload -->
-    <div class="upload-zone" id="upload-zone">
-      <input type="file" id="csv-input" accept=".csv">
-      <div class="upload-icon">📂</div>
-      <div class="upload-title">Drop CSV file here</div>
-      <div class="upload-hint">source, target [, weight]</div>
-    </div>
-
-    <!-- Stats -->
-    <div class="stats-grid" id="stats-grid">
-      <div class="stat-card"><div class="stat-val" id="s-nodes">—</div><div class="stat-label">Nodes</div></div>
-      <div class="stat-card"><div class="stat-val" id="s-edges">—</div><div class="stat-label">Edges</div></div>
-      <div class="stat-card"><div class="stat-val" id="s-density">—</div><div class="stat-label">Density</div></div>
-      <div class="stat-card"><div class="stat-val" id="s-components">—</div><div class="stat-label">Server Mode</div></div>
-    </div>
-
-    <!-- Tasks -->
-    <div class="section">
-      <div class="section-label">Analysis Tasks</div>
-      <button class="task-btn" id="task-community" onclick="selectTask('community')" disabled>
-        <span class="task-icon">🔵</span>
-        <span class="task-info">
-          <div class="task-name">Community Detection</div>
-          <div class="task-desc">Louvain + Leiden</div>
-        </span>
-        <span class="task-badge">Graphology</span>
-      </button>
-      <button class="task-btn" id="task-centrality" onclick="selectTask('centrality')" disabled>
-        <span class="task-icon">⭐</span>
-        <span class="task-info">
-          <div class="task-name">Centrality Measures</div>
-          <div class="task-desc">Betweenness · Eigenvector</div>
-        </span>
-        <span class="task-badge">Graphology</span>
-      </button>
-      <button class="task-btn" id="task-node-pred" onclick="selectTask('node-pred')" disabled>
-        <span class="task-icon">🟣</span>
-        <span class="task-info">
-          <div class="task-name">Node Prediction</div>
-          <div class="task-desc">GNN-based label inference</div>
-        </span>
-        <span class="task-badge">TF.js</span>
-      </button>
-      <button class="task-btn" id="task-edge-pred" onclick="selectTask('edge-pred')" disabled>
-        <span class="task-icon">🟠</span>
-        <span class="task-info">
-          <div class="task-name">Edge Prediction</div>
-          <div class="task-desc">Link probability via Tensors</div>
-        </span>
-        <span class="task-badge">TF.js</span>
-      </button>
-    </div>
-
-    <!-- Reset -->
-    <div class="section">
-      <button class="task-btn" onclick="resetAll()" style="border-color:var(--red);color:var(--red)">
-        <span class="task-icon">🗑️</span>
-        <span class="task-info"><div class="task-name">Reset / Clear Data</div><div class="task-desc">Wipe all loaded data</div></span>
-      </button>
-    </div>
-  </div>
-
-  <!-- CENTER: Graph Visualization -->
-  <div class="graph-panel">
-    <div class="graph-toolbar">
-      <button class="toolbar-btn" onclick="network && network.fit()">↔ Fit</button>
-      <div class="toolbar-sep"></div>
-      <button class="toolbar-btn" id="toggle-labels-btn" onclick="toggleLabels()">Labels ON</button>
-      <button class="toolbar-btn" id="color-comm-btn" onclick="runCommunityDetection()" disabled>Color↗ Community</button>
-    </div>
-    <div class="graph-container">
-      <div id="graph-vis"></div>
-      <div class="graph-placeholder" id="graph-placeholder">
-        <div class="placeholder-art">
-          <svg viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="100" cy="40" r="12" stroke="#38bdf8" stroke-width="2"/>
-            <circle cx="40" cy="140" r="12" stroke="#a78bfa" stroke-width="2"/>
-            <circle cx="160" cy="140" r="12" stroke="#34d399" stroke-width="2"/>
-            <circle cx="100" cy="120" r="8" stroke="#fbbf24" stroke-width="1.5"/>
-            <line x1="100" y1="52" x2="100" y2="112" stroke="#38bdf8" stroke-width="1.5" opacity="0.6"/>
-            <line x1="91" y1="47" x2="46" y2="132" stroke="#a78bfa" stroke-width="1.5" opacity="0.6"/>
-            <line x1="109" y1="47" x2="154" y2="132" stroke="#34d399" stroke-width="1.5" opacity="0.6"/>
-          </svg>
-        </div>
-        <div class="placeholder-text">
-          <h3>No graph loaded</h3>
-          <p>Upload a CSV file to send to Node.js</p>
-        </div>
+    <!-- Placeholder -->
+    <div class="graph-placeholder" id="graph-placeholder">
+      <div class="placeholder-art">
+        <svg width="140" height="140" viewBox="0 0 140 140" fill="none">
+          <circle cx="70" cy="28" r="10" stroke="#4f8ef7" stroke-width="1.5"/>
+          <circle cx="28" cy="100" r="10" stroke="#8b5cf6" stroke-width="1.5"/>
+          <circle cx="112" cy="100" r="10" stroke="#22d3a0" stroke-width="1.5"/>
+          <circle cx="70" cy="80" r="6" stroke="#f59e0b" stroke-width="1.2"/>
+          <line x1="70" y1="38" x2="70" y2="74" stroke="#4f8ef7" stroke-width="1.2" opacity="0.5"/>
+          <line x1="63" y1="33" x2="33" y2="92" stroke="#8b5cf6" stroke-width="1.2" opacity="0.5"/>
+          <line x1="77" y1="33" x2="107" y2="92" stroke="#22d3a0" stroke-width="1.2" opacity="0.5"/>
+        </svg>
       </div>
-    </div>
-  </div>
-
-  <!-- RIGHT PANEL: Results -->
-  <div class="panel results-panel" id="right-panel">
-    <div class="panel-header">
-      <div class="panel-title">Results</div>
-      <div class="panel-sub" id="result-panel-sub">Select a task to run</div>
-    </div>
-
-    <!-- Task: Community Detection -->
-    <div id="task-community-panel" class="tab-content">
-      <div class="algo-controls">
-        <div class="section-label" style="margin-bottom:0.5rem">Algorithm</div>
-        <div class="algo-tab-row">
-          <div class="algo-tab active" onclick="setAlgo('community','louvain',this)">Louvain Modularity</div>
-          <div class="algo-tab" onclick="setAlgo('community','leiden',this)">Leiden</div>
-        </div>
-        <button class="run-btn" onclick="runCommunityDetection()" id="run-community-btn" disabled>▶ SHOW COMMUNITIES</button>
-        <button class="run-btn secondary" onclick="downloadCommunityCSV()" id="download-community-btn" disabled style="margin-top:0.5rem">DOWNLOAD COMMUNITY CSV</button>
-      </div>
-      <div class="results-body" id="community-results">
-        <div class="results-empty"><div class="results-empty-icon">🔵</div><div class="results-empty-text">Click to map server-side data</div></div>
-      </div>
-    </div>
-
-    <!-- Task: Centrality -->
-    <div id="task-centrality-panel" class="tab-content">
-      <div class="algo-controls">
-        <div class="section-label" style="margin-bottom:0.5rem">Measure</div>
-        <div class="algo-tab-row">
-          <div class="algo-tab active" onclick="setAlgo('centrality','betweenness',this)">Betweenness</div>
-          <div class="algo-tab" onclick="setAlgo('centrality','eigenvector',this)">Eigenvector</div>
-          <div class="algo-tab" onclick="setAlgo('centrality','degree',this)">Degree</div>
-        </div>
-        <button class="run-btn" onclick="runCentrality()" id="run-centrality-btn" disabled>▶ SHOW CENTRALITY</button>
-      </div>
-      <div class="results-body" id="centrality-results">
-        <div class="results-empty"><div class="results-empty-icon">⭐</div><div class="results-empty-text">Click to view server-side calculations</div></div>
-      </div>
-    </div>
-
-    <!-- Task: Node Prediction -->
-    <div id="task-node-pred-panel" class="tab-content">
-      <div class="algo-controls">
-        <div class="section-label" style="margin-bottom:0.5rem">New Node Features</div>
-        <div class="field-group">
-          <div class="field-label">Node Name / ID</div>
-          <input class="field-input" type="text" id="new-node-name" placeholder="e.g. unknown_node">
-        </div>
-        <div class="field-group">
-          <div class="field-label">Known connections (comma-separated existing nodes)</div>
-          <input class="field-input" type="text" id="new-node-connections" placeholder="e.g. nodeA, nodeB">
-        </div>
-        <div class="inline-note">Sends data to Node.js. TensorFlow.js runs Message Passing to predict community.</div>
-        <button class="run-btn" onclick="runNodePrediction()" id="run-node-btn" disabled style="margin-top:0.5rem">▶ PREDICT NODE (TF.JS)</button>
-      </div>
-      <div class="results-body" id="node-pred-results">
-        <div class="results-empty"><div class="results-empty-icon">🟣</div><div class="results-empty-text">Enter node details and run prediction</div></div>
-      </div>
-    </div>
-
-    <!-- Task: Edge Prediction -->
-    <div id="task-edge-pred-panel" class="tab-content">
-      <div class="algo-controls">
-        <div class="section-label" style="margin-bottom:0.5rem">New Node for Edge Prediction</div>
-        <div class="field-group">
-          <div class="field-label">Node Name / ID</div>
-          <input class="field-input" type="text" id="edge-node-name" placeholder="e.g. new_entity">
-        </div>
-        <div class="field-group">
-          <div class="field-label">Known connections (comma-separated existing nodes)</div>
-          <input class="field-input" type="text" id="edge-node-connections" placeholder="e.g. nodeC, nodeD">
-        </div>
-        <div class="field-group">
-          <div class="field-label">Top-K predictions</div>
-          <input class="field-input" type="number" id="edge-topk" value="8" min="1" max="20">
-        </div>
-        <div class="inline-note">Node.js uses TensorFlow Tensors to compute Adamic-Adar probabilities.</div>
-        <button class="run-btn" onclick="runEdgePrediction()" id="run-edge-btn" disabled style="margin-top:0.5rem">▶ PREDICT EDGES (TF.JS)</button>
-      </div>
-      <div class="results-body" id="edge-pred-results">
-        <div class="results-empty"><div class="results-empty-icon">🟠</div><div class="results-empty-text">Enter node and run edge prediction</div></div>
-      </div>
-    </div>
-
-    <!-- Default state -->
-    <div id="task-none-panel" class="tab-content active">
-      <div class="results-empty" style="height:300px">
-        <div class="results-empty-icon" style="font-size:2.5rem">📊</div>
-        <div class="results-empty-text">Load a CSV graph file<br>then select a task</div>
+      <div class="placeholder-text">
+        <h3>No graph loaded</h3>
+        <p>Load the demo dataset or upload a CSV file</p>
       </div>
     </div>
   </div>
 </div>
 
-<div id="toast" class="hidden">Toast message</div>
+<!-- ══ RIGHT PANEL ══ -->
+<div class="rpanel">
+  <div class="rpanel-header">
+    <div class="panel-title">Results <span id="demo-mode-indicator"></span></div>
+    <div class="panel-sub" id="result-panel-sub">Select a task to run</div>
+  </div>
+  <div class="stats-grid">
+    <div class="stat-card"><div class="stat-val" id="s-nodes">—</div><div class="stat-label">Nodes</div></div>
+    <div class="stat-card"><div class="stat-val" id="s-edges">—</div><div class="stat-label">Edges</div></div>
+    <div class="stat-card"><div class="stat-val" id="s-density">—</div><div class="stat-label">Density</div></div>
+    <div class="stat-card"><div class="stat-val" id="s-comms">—</div><div class="stat-label">Communities</div></div>
+  </div>
+  <div class="rpanel-body">
 
-<!-- FULL INTEGRATED JAVASCRIPT -->
+  <!-- Community Detection -->
+  <div id="task-community-panel" class="tab-content">
+    <div class="algo-controls">
+      <div class="section-label" style="margin-bottom:0.4rem">Algorithm</div>
+      <div class="algo-tab-row">
+        <div class="algo-tab active" onclick="setAlgo('community','louvain',this)">Louvain</div>
+        <div class="algo-tab" onclick="setAlgo('community','leiden',this)">Leiden</div>
+      </div>
+      <button class="run-btn" onclick="runCommunityDetection()" id="run-community-btn" disabled>▶ DETECT COMMUNITIES</button>
+      <button class="run-btn secondary" onclick="downloadCommunityCSV()" id="dl-comm-btn" disabled style="margin-top:0.3rem">↓ EXPORT CSV</button>
+    </div>
+    <div class="results-body" id="community-results">
+      <div class="results-empty"><div class="results-empty-icon">🔵</div><div class="results-empty-text">Run community detection</div></div>
+    </div>
+  </div>
+
+  <!-- Centrality -->
+  <div id="task-centrality-panel" class="tab-content">
+    <div class="algo-controls">
+      <div class="section-label" style="margin-bottom:0.4rem">Measure</div>
+      <div class="algo-tab-row">
+        <div class="algo-tab active" onclick="setAlgo('centrality','betweenness',this)">Betweenness</div>
+        <div class="algo-tab" onclick="setAlgo('centrality','eigenvector',this)">Eigenvector</div>
+        <div class="algo-tab" onclick="setAlgo('centrality','degree',this)">Degree</div>
+      </div>
+      <button class="run-btn" onclick="runCentrality()" id="run-centrality-btn" disabled>▶ SHOW CENTRALITY</button>
+    </div>
+    <div class="results-body" id="centrality-results">
+      <div class="results-empty"><div class="results-empty-icon">⭐</div><div class="results-empty-text">Select a measure and run</div></div>
+    </div>
+  </div>
+
+  <!-- Node Classification (GNN) -->
+  <div id="task-node-pred-panel" class="tab-content">
+    <div class="algo-controls">
+      <div class="section-label" style="margin-bottom:0.4rem">GraphSAGE Node Classification</div>
+      <div class="field-group">
+        <div class="field-label">Word / Node ID</div>
+        <input class="field-input" type="text" id="gnn-node-input" placeholder="e.g. farmers, protest, modi">
+      </div>
+      
+      <div class="field-group">
+        <div class="field-label">Known connections (comma-separated)</div>
+        <input class="field-input" type="text" id="gnn-node-connections" placeholder="e.g. nodeA, nodeB">
+      </div>
+      <div class="inline-note" id="gnn-node-hint">For unseen nodes, add at least one existing connection to enable inductive prediction.</div>
+      <button class="run-btn" onclick="runGNNNodePred()" id="run-node-btn" disabled style="margin-top:0.4rem">▶ PREDICT COMMUNITY</button>
+    </div>
+    <div class="results-body" id="node-pred-results">
+      <div class="results-empty"><div class="results-empty-icon">🟣</div><div class="results-empty-text">Enter a word and predict its community</div></div>
+    </div>
+  </div>
+
+  <!-- Link Prediction -->
+  <div id="task-edge-pred-panel" class="tab-content">
+    <div class="algo-controls">
+      <div class="section-label" style="margin-bottom:0.4rem">Link Prediction</div>
+      <div class="field-group">
+        <div class="field-label">Node Name / ID</div>
+        <input class="field-input" type="text" id="edge-node-name" placeholder="e.g. new_entity">
+      </div>
+      <div class="field-group">
+        <div class="field-label">Known connections (comma-separated)</div>
+        <input class="field-input" type="text" id="edge-node-connections" placeholder="e.g. nodeA, nodeB">
+      </div>
+      <div class="field-group">
+        <div class="field-label">Top-K predictions</div>
+        <input class="field-input" type="number" id="edge-topk" value="8" min="1" max="20">
+      </div>
+      <button class="run-btn" onclick="runEdgePrediction()" id="run-edge-btn" disabled style="margin-top:0.3rem">▶ PREDICT LINKS</button>
+    </div>
+    <div class="results-body" id="edge-pred-results">
+      <div class="results-empty"><div class="results-empty-icon">🟠</div><div class="results-empty-text">Enter node and predict links</div></div>
+    </div>
+  </div>
+
+  <!-- Default -->
+  <div id="task-none-panel" class="tab-content active">
+    <div class="results-empty" style="height:100%;justify-content:center">
+      <div class="results-empty-icon" style="font-size:2rem">📊</div>
+      <div class="results-empty-text">Load a graph<br>then select a task</div>
+    </div>
+  </div>
+  </div>
+</div>
+</div>
+
+<div id="toast"></div>
+
 <script>
-// VIS LIBRARY LOADER
-function waitForVis(cb, tries = 0) {
-  if (typeof vis !== 'undefined' && vis.Network && vis.DataSet) { cb(); return; }
-  if (tries > 100) return;
-  setTimeout(() => waitForVis(cb, tries + 1), 50);
-}
-
+// ══════════════════════════════════════════════
 // STATE
-let graphData = null; // Full graph from server
-let graphRenderData = null; // Possibly downsampled for visualization
-let network = null;
-let visNodes = null;
-let visEdges = null;
-let showLabels = true;
-let activeTask = null;
+// ══════════════════════════════════════════════
+let graphData       = null;
+let network         = null;
+let visNodes        = null;
+let visEdges        = null;
+let showLabels      = true;
+let renderNodeIds   = null;
+let activeTask      = null;
+let isDemoMode      = false;
+let gnnOnline       = false;
+let tsneLoaded      = false;
+let tsnePoints      = null;
+let communityMeta   = null;  // demo community cards
+let tsneThemes      = null;  // demo theme map for t-SNE
+let currentView     = 'graph';
+
 const algoState = { community: 'louvain', centrality: 'betweenness' };
-const COMM_COLORS =['#38bdf8','#a78bfa','#34d399','#fbbf24','#f472b6','#fb923c','#4ade80','#60a5fa','#e879f9','#f87171'];
 
-const MAX_RENDER_EDGES = 20000;
+const COMM_COLORS = [
+  '#4f8ef7','#8b5cf6','#22d3a0','#f59e0b','#f43f5e',
+  '#06b6d4','#84cc16','#ec4899','#f97316','#a78bfa',
+  '#34d399','#fbbf24','#60a5fa','#e879f9','#4ade80',
+  '#fb923c','#818cf8','#2dd4bf','#f472b6','#facc15'
+];
 
-function prepareRenderData(full) {
-  if (!full || !full.nodes || !full.edges) return null;
-  if (full.edges.length <= MAX_RENDER_EDGES) {
-    return { nodes: full.nodes, edges: full.edges, isSampled: false };
+const MAX_RENDER_NODES = 5000;
+const MAX_RENDER_EDGES = 15000;
+
+// ══════════════════════════════════════════════
+// GNN STATUS CHECK
+// ══════════════════════════════════════════════
+async function checkGNNStatus() {
+  try {
+    const r = await fetch('/api/gnn/status');
+    const d = await r.json();
+    gnnOnline = d.available;
+    const badge = document.getElementById('gnn-badge');
+    const txt   = document.getElementById('gnn-badge-txt');
+    if (gnnOnline) {
+      badge.className = 'gnn-badge online';
+      txt.textContent = 'GNN online';
+    } else {
+      badge.className = 'gnn-badge';
+      txt.textContent = 'GNN offline';
+    }
+  } catch(e) {
+    gnnOnline = false;
   }
-  const step = Math.ceil(full.edges.length / MAX_RENDER_EDGES);
-  const sampledEdges = full.edges.filter((_, idx) => idx % step === 0);
-  return { nodes: full.nodes, edges: sampledEdges, isSampled: true, fullEdgeCount: full.edges.length };
+}
+checkGNNStatus();
+setInterval(checkGNNStatus, 15000);
+
+// ══════════════════════════════════════════════
+// DEMO MODE
+// ══════════════════════════════════════════════
+async function loadDemo() {
+  if (!gnnOnline) return toast('⚠ GNN service offline. Start python app.py first.');
+  const btn = document.getElementById('demo-load-btn');
+  btn.disabled = true;
+  btn.textContent = 'Loading…';
+  toast('⏳ Loading Farmer\'s Protest demo…');
+
+  try {
+    tsneLoaded = false;
+    tsnePoints = null;
+    tsneThemes = null;
+    document.getElementById('load-tsne-btn').textContent = 'Load t-SNE';
+
+    // Load demo from GNN service
+    const r = await fetch('/api/gnn/demo/load', { method: 'POST' });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+
+    isDemoMode = true;
+    document.getElementById('demo-mode-indicator').innerHTML =
+      '<span class="demo-mode-tag">★ DEMO</span>';
+    document.getElementById('meta-mode').textContent = "Farmer's Protest";
+
+    // Load community data for display
+    const cr = await fetch('/api/gnn/demo/communities');
+    const cd = await cr.json();
+    communityMeta = cd.communities;
+
+    // Build a lightweight graphData from communities
+    graphData = { nodes: [], edges: [], isDemoMode: true, communities: cd.communities };
+    communityMeta.forEach(comm => {
+      comm.top_words.forEach(word => {
+        graphData.nodes.push({
+          id: word, degree: 1,
+          community: comm.id,
+          communities: { louvain: comm.id, leiden: comm.id },
+          centrality: { betweenness: 0, eigenvector: 0, degree: 0 },
+          theme: comm.theme, color: comm.color,
+        });
+      });
+    });
+
+    updateStats(d.nodes, d.edges, d.communities);
+    switchView('graph');
+    buildVisNetwork();
+    enableTaskButtons();
+    document.getElementById('load-tsne-btn').disabled = false;
+    document.getElementById('color-comm-btn').disabled = false;
+    const trainBtn = document.getElementById('train-gnn-btn');
+    if (trainBtn) trainBtn.disabled = true;
+
+    // Auto-show community panel
+    selectTask('community');
+    showDemoCommunities(cd.communities);
+
+    btn.textContent = '✓ Demo Loaded';
+    toast(`✅ Demo loaded — ${d.nodes.toLocaleString()} words, ${d.communities} communities`);
+
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = 'Load Demo Dataset';
+    toast('⚠ ' + e.message);
+  }
 }
 
-function getCommunityId(node) {
-  const algo = algoState.community;
-  if (node.communities && node.communities[algo] !== undefined) return node.communities[algo];
-  if (node.community !== undefined) return node.community;
-  return 0;
+function showDemoCommunities(communities) {
+  const res = document.getElementById('community-results');
+  let html = `<div style="font-size:0.72rem;color:var(--text2);margin-bottom:0.6rem;font-family:'IBM Plex Mono',monospace">${communities.length} DISCOURSE COMMUNITIES DETECTED</div>`;
+  communities.forEach(comm => {
+    html += `
+    <div class="comm-card" onclick="toggleCommCard(this)">
+      <div class="comm-card-header">
+        <div class="comm-color-bar" style="background:${comm.color}"></div>
+        <div class="comm-info">
+          <div class="comm-theme">${comm.theme}</div>
+          <div class="comm-meta">Community ${comm.id} · Louvain</div>
+        </div>
+        <div class="comm-size-badge">${comm.size}</div>
+      </div>
+      <div class="comm-words">
+        ${comm.top_words.map(w => `<span class="word-chip">${w}</span>`).join('')}
+      </div>
+    </div>`;
+  });
+  res.innerHTML = html;
+  document.getElementById('dl-comm-btn').disabled = false;
+  document.getElementById('s-comms').textContent = communities.length;
 }
 
-function getCommunityLabel() {
-  return algoState.community === 'leiden' ? 'Leiden' : 'Louvain Modularity';
+function toggleCommCard(el) {
+  el.classList.toggle('expanded');
 }
 
-function csvEscape(value) {
-  const str = String(value ?? '');
-  return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+// ══════════════════════════════════════════════
+// t-SNE VISUALISATION
+// ══════════════════════════════════════════════
+async function loadTSNE() {
+  if (!gnnOnline) return toast('⚠ GNN service required for t-SNE.');
+  toast('⏳ Fetching t-SNE embeddings…');
+  document.getElementById('load-tsne-btn').textContent = 'Loading…';
+
+  try {
+    const endpoint = isDemoMode ? '/api/gnn/demo/embeddings' : '/api/gnn/user/embeddings';
+    const r = await fetch(endpoint);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+
+    tsnePoints = d.points;
+    tsneThemes = isDemoMode ? d.communities : null;
+    tsneLoaded = true;
+
+    switchView('tsne');
+    renderTSNE();
+    document.getElementById('load-tsne-btn').textContent = 't-SNE ✓';
+    toast(`✅ t-SNE loaded — ${tsnePoints.length.toLocaleString()} nodes`);
+  } catch(e) {
+    document.getElementById('load-tsne-btn').textContent = 'Load t-SNE';
+    toast('⚠ ' + e.message);
+  }
 }
 
-// --- UPLOAD TO NODE.JS BACKEND ---
-document.getElementById('csv-input').addEventListener('change', e => {
-  if (e.target.files[0]) loadCSVFromBackend(e.target.files[0]);
+function switchView(view) {
+  currentView = view;
+  document.getElementById('tab-graph').classList.toggle('active', view === 'graph');
+  document.getElementById('tab-tsne').classList.toggle('active', view === 'tsne');
+
+  const gv = document.getElementById('graph-vis');
+  const tp = document.getElementById('tsne-panel');
+  const ph = document.getElementById('graph-placeholder');
+
+  if (view === 'tsne') {
+    gv.style.display = 'none';
+    tp.style.display = 'flex';
+    ph.style.display = 'none';
+    if (tsneLoaded) renderTSNE();
+  } else {
+    gv.style.display = 'block';
+    tp.style.display = 'none';
+    if (!graphData) ph.style.display = 'flex';
+    else ph.style.display = 'none';
+    if (network) {
+      setTimeout(() => {
+        network.redraw();
+        network.fit({ animation: false });
+      }, 50);
+    }
+  }
+}
+
+function renderTSNE() {
+  if (!tsnePoints || !tsnePoints.length) return;
+  const canvas  = document.getElementById('tsne-canvas');
+  const panel   = document.getElementById('tsne-panel');
+  const ctx     = canvas.getContext('2d');
+
+  canvas.width  = panel.offsetWidth;
+  canvas.height = panel.offsetHeight - 80;
+
+  // Compute bounds
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  tsnePoints.forEach(p => {
+    minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+    minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+  });
+  const pad = 30;
+  const scaleX = (canvas.width  - pad*2) / (maxX - minX);
+  const scaleY = (canvas.height - pad*2) / (maxY - minY);
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Group by community for efficient rendering
+  const groups = {};
+  tsnePoints.forEach(p => {
+    const comm = Number.isFinite(p.community) ? p.community : 0;
+    if (!groups[comm]) groups[comm] = [];
+    groups[comm].push(p);
+  });
+
+  Object.entries(groups).forEach(([commId, pts]) => {
+    const color = COMM_COLORS[parseInt(commId) % COMM_COLORS.length];
+    ctx.fillStyle = color + 'cc';
+    pts.forEach(p => {
+      const cx = pad + (p.x - minX) * scaleX;
+      const cy = pad + (p.y - minY) * scaleY;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  });
+
+  // Build legend
+  const legend = document.getElementById('tsne-legend');
+  const themes = tsneThemes || {};
+  const commIds = [...new Set(tsnePoints.map(p => Number.isFinite(p.community) ? p.community : 0))].sort((a,b)=>a-b);
+
+  legend.innerHTML = commIds.map(id => {
+    const theme = typeof themes === 'object' && themes[id]
+      ? themes[id]
+      : (tsnePoints.find(p => (Number.isFinite(p.community) ? p.community : 0) === id)?.theme || `Community ${id}`);
+    const color = COMM_COLORS[id % COMM_COLORS.length];
+    return `<div class="tsne-legend-item" title="${theme}">
+      <div class="tsne-legend-dot" style="background:${color}"></div>
+      <span>C${id}: ${theme.split(' ').slice(0,3).join(' ')}</span>
+    </div>`;
+  }).join('');
+
+  // Hover tooltip
+  canvas.onmousemove = function(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    let closest = null, minDist = 12;
+
+    tsnePoints.forEach(p => {
+      const cx = pad + (p.x - minX) * scaleX;
+      const cy = pad + (p.y - minY) * scaleY;
+      const dist = Math.hypot(mx-cx, my-cy);
+      if (dist < minDist) { minDist = dist; closest = p; }
+    });
+
+    if (closest) {
+      const comm = Number.isFinite(closest.community) ? closest.community : 0;
+      const name = closest.term ?? closest.id ?? 'Node';
+      const theme = closest.theme || (tsneThemes && tsneThemes[comm]) || `Community ${comm}`;
+      canvas.title = `${name} — ${theme} (C${comm})`;
+    } else {
+      canvas.title = '';
+    }
+  };
+}
+
+window.addEventListener('resize', () => {
+  if (currentView === 'tsne' && tsneLoaded) renderTSNE();
 });
 
-const uz = document.getElementById('upload-zone');
-uz.addEventListener('dragover', e => { e.preventDefault(); uz.classList.add('drag'); });
-uz.addEventListener('dragleave', () => uz.classList.remove('drag'));
-uz.addEventListener('drop', e => {
-  e.preventDefault(); uz.classList.remove('drag');
-  const file = e.dataTransfer.files[0];
-  if (file && file.name.endsWith('.csv')) loadCSVFromBackend(file);
+// ══════════════════════════════════════════════
+// NODE SEARCH
+// ══════════════════════════════════════════════
+let searchTimer = null;
+function onSearchInput(val) {
+  clearTimeout(searchTimer);
+  if (!val.trim() || !gnnOnline || !isDemoMode) {
+    const res = document.getElementById('search-results');
+    if (res) { res.innerHTML = ''; res.classList.remove('show'); }
+    return;
+  }
+  searchTimer = setTimeout(() => doSearch(val), 300);
+}
+
+async function doSearch(query) {
+  try {
+    const r = await fetch('/api/gnn/demo/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: query.trim().toLowerCase() })
+    });
+    const d = await r.json();
+    if (!r.ok) return;
+
+    const container = document.getElementById('search-results');
+    if (!container) return;
+    if (!d.results || !d.results.length) {
+      container.innerHTML = `<div style="font-size:0.68rem;color:var(--text3);padding:0.3rem 0">No results for "${query}"</div>`;
+      container.classList.add('show');
+      return;
+    }
+
+    container.innerHTML = d.results.map(r => `
+      <div class="search-result-item" onclick="selectSearchResult('${r.term}')">
+        <div class="search-dot" style="background:${r.color}"></div>
+        <span class="search-term">${r.term}</span>
+        <span class="search-theme">${r.theme.split(' ').slice(0,2).join(' ')}</span>
+      </div>
+    `).join('');
+    container.classList.add('show');
+  } catch(e) {}
+}
+
+function selectSearchResult(term) {
+  document.getElementById('node-search-input').value = term;
+  const res = document.getElementById('search-results');
+  if (res) { res.innerHTML = ''; res.classList.remove('show'); }
+  // Auto-fill node prediction input
+  document.getElementById('gnn-node-input').value = term;
+  selectTask('node-pred');
+  toast(`Selected: ${term}`);
+}
+
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('menu-search-wrap');
+  const res  = document.getElementById('search-results');
+  if (wrap && res && !wrap.contains(e.target)) {
+    res.classList.remove('show');
+  }
 });
+
+// ══════════════════════════════════════════════
+// GNN NODE CLASSIFICATION
+// ══════════════════════════════════════════════
+async function trainGNN(mode = 'fast') {
+  if (!gnnOnline) return toast('⚠ GNN service offline.');
+  if (!graphData || !graphData.nodes || !graphData.edges)
+    return toast('⚠ Load a graph first.');
+
+  const btn = document.getElementById('train-gnn-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Training…';
+  }
+  tsneLoaded = false;
+  tsnePoints = null;
+  tsneThemes = null;
+  toast('⏳ Training GraphSAGE model…');
+
+  try {
+    const r = await fetch('/api/gnn/train', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodes: graphData.nodes, edges: graphData.edges, mode })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Training failed');
+    const msg = d.cached ? '✅ Model loaded from cache' : '✅ GNN training complete';
+    toast(msg);
+    if (btn) btn.textContent = d.cached ? 'Cached ✓' : 'Trained ✓';
+    const tsneBtn = document.getElementById('load-tsne-btn');
+    if (tsneBtn) {
+      tsneBtn.disabled = false;
+      tsneBtn.textContent = 'Load t-SNE';
+    }
+    setTimeout(() => { if (btn) { btn.textContent = 'Train GNN'; btn.disabled = false; } }, 2000);
+  } catch(e) {
+    if (btn) { btn.textContent = 'Train GNN'; btn.disabled = false; }
+    toast('⚠ ' + e.message);
+  }
+}
+
+async function runGNNNodePred() {
+  const term = document.getElementById('gnn-node-input').value.trim().toLowerCase();
+  const res  = document.getElementById('node-pred-results');
+  const connStr = document.getElementById('gnn-node-connections')?.value || '';
+  const connections = connStr.split(',').map(s => s.trim()).filter(Boolean);
+  if (!term) return toast('⚠ Enter a word to classify.');
+  if (!gnnOnline) return toast('⚠ GNN service offline.');
+
+  res.innerHTML = `<div style="padding:1rem"><span class="spinner"></span> Running GraphSAGE inference…</div>`;
+
+  try {
+    const endpoint = isDemoMode ? '/api/gnn/demo/predict-node' : '/api/gnn/user/predict-node';
+    const payload  = isDemoMode ? { term } : (connections.length ? { nodeId: term, connections } : { nodeId: term });
+    const r = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+
+    const color = COMM_COLORS[d.predicted_community % COMM_COLORS.length];
+    const top5Html = d.top5 ? d.top5.map(t => `
+      <div class="top5-row">
+        <span class="top5-comm">C${t.community}</span>
+        <span class="top5-theme">${t.theme}</span>
+        <span class="top5-prob">${t.probability}%</span>
+      </div>`).join('') : '';
+
+    res.innerHTML = `
+      <div class="gnn-result-box">
+        <div class="gnn-result-title">Predicted Community</div>
+        <div class="gnn-result-main" style="color:${color}">
+          Community ${d.predicted_community}
+          ${d.theme ? `<span style="font-size:0.72rem;color:var(--text2);font-weight:400"> — ${d.theme}</span>` : ''}
+        </div>
+        <div class="gnn-result-sub">Confidence: ${d.confidence}%</div>
+        <div class="prob-bar"><div class="prob-fill" style="width:${d.confidence}%;background:${color}"></div></div>
+      </div>
+      ${d.top5 ? `
+      <div class="gnn-result-box">
+        <div class="gnn-result-title">Top 5 Probabilities</div>
+        ${top5Html}
+      </div>` : ''}
+      <div class="gnn-result-box">
+        <div class="gnn-result-title">Query</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:0.85rem;font-weight:600">"${term}"</div>
+        <div class="gnn-result-sub" style="margin-top:4px">Model: GraphSAGE · 3-layer · weighted loss</div>
+        <div class="gnn-result-sub">Accuracy: 41.8% · Macro-F1: 20.6%</div>
+      </div>`;
+  } catch(e) {
+    res.innerHTML = `<div style="padding:0.75rem;color:var(--red);font-size:0.78rem">⚠ ${e.message}</div>`;
+    toast('⚠ ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════
+// CSV UPLOAD
+// ══════════════════════════════════════════════
+const csvInput = document.getElementById('csv-input');
+const uploadBtn = document.getElementById('menu-upload-btn');
+if (uploadBtn && csvInput) {
+  uploadBtn.addEventListener('click', () => csvInput.click());
+}
+if (csvInput) {
+  csvInput.addEventListener('change', e => {
+    if (e.target.files[0]) loadCSVFromBackend(e.target.files[0]);
+  });
+}
+const dropArea = document.getElementById('graph-drop');
+if (dropArea) {
+  dropArea.addEventListener('dragover', e => { e.preventDefault(); dropArea.classList.add('drag'); });
+  dropArea.addEventListener('dragleave', () => dropArea.classList.remove('drag'));
+  dropArea.addEventListener('drop', e => {
+    e.preventDefault(); dropArea.classList.remove('drag');
+    const file = e.dataTransfer.files[0];
+    if (file && file.name.endsWith('.csv')) loadCSVFromBackend(file);
+  });
+}
 
 async function loadCSVFromBackend(file) {
-    toast('⏳ Uploading to Node.js Server...');
-    
-    const formData = new FormData();
-    formData.append('csv', file);
+  toast('⏳ Uploading to server…');
+  const formData = new FormData();
+  formData.append('csv', file);
+  try {
+    const r = await fetch('/api/analyze', { method: 'POST', body: formData });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Failed to process graph');
+    if (!d.nodes || !d.edges) throw new Error('Invalid server response.');
 
-    try {
-        const response = await fetch('/api/analyze', { method: 'POST', body: formData });
-        let payload = null;
-        try { payload = await response.json(); } catch (e) { /* no-op */ }
-        if (!response.ok) {
-            const msg = payload && payload.error ? payload.error : 'Failed to process graph';
-            throw new Error(msg);
-        }
-        
-        if (!payload || !payload.nodes || !payload.edges) {
-            throw new Error('Invalid server response.');
-        }
+    isDemoMode = false;
+    tsneLoaded = false;
+    tsnePoints = null;
+    tsneThemes = null;
+    document.getElementById('load-tsne-btn').disabled = true;
+    document.getElementById('load-tsne-btn').textContent = 'Load t-SNE';
+    graphData  = d;
+    document.getElementById('demo-mode-indicator').innerHTML = '';
+    document.getElementById('meta-mode').textContent = file.name;
 
-        graphData = payload;
-        graphRenderData = prepareRenderData(graphData);
-        
-        updateStats();
-        buildVisNetwork();
-        if (graphRenderData && graphRenderData.isSampled) {
-            toast(`Large graph detected. Rendering ${graphRenderData.edges.length} of ${graphRenderData.fullEdgeCount} edges.`);
-        }
+    const totalNodes = d.meta?.total_nodes ?? d.nodes.length;
+    const totalEdges = d.meta?.total_edges ?? d.edges.length;
+    updateStats(totalNodes, totalEdges, null);
+    switchView('graph');
+    buildVisNetwork();
+    enableTaskButtons();
+    document.getElementById('color-comm-btn').disabled = false;
 
-        // Enable UI buttons
-        const tasks =['community','centrality','node-pred','edge-pred'];
-        tasks.forEach(t => document.getElementById('task-'+t).disabled = false);
-        
-        document.getElementById('run-community-btn').disabled = false;
-        document.getElementById('run-centrality-btn').disabled = false;
-        document.getElementById('run-node-btn').disabled = false;
-        document.getElementById('run-edge-btn').disabled = false;
-        document.getElementById('download-community-btn').disabled = true;
-
-        document.getElementById('status-dot').classList.add('active');
-        document.getElementById('status-txt').textContent = file.name;
-        document.getElementById('meta-nodes').textContent = graphData.nodes.length + ' nodes';
-        let edgesLabel = graphData.edges.length + ' edges';
-        if (graphRenderData && graphRenderData.isSampled) {
-            edgesLabel += ` (rendering ${graphRenderData.edges.length})`;
-        }
-        document.getElementById('meta-edges').textContent = edgesLabel;
-
-        toast('✅ Graph loaded successfully from server');
-    } catch (err) {
-        toast('⚠ API Error: ' + err.message);
-    }
+    const sampledNote = d.meta?.sampled
+      ? ` (showing ${d.meta?.returned_nodes?.toLocaleString() || d.nodes.length.toLocaleString()} nodes)`
+      : '';
+    const centralityNote = d.meta?.centralitySkipped
+      ? ' centrality skipped'
+      : '';
+    toast(`✅ ${file.name} loaded${sampledNote}${centralityNote ? ' —' + centralityNote : ''}`);
+  } catch(e) {
+    toast('⚠ ' + e.message);
+  }
 }
 
-function updateStats() {
-    const N = graphData.nodes.length;
-    const E = graphData.edges.length;
-    const density = N > 1 ? (2 * E / (N * (N - 1))).toFixed(4) : '—';
-    document.getElementById('s-nodes').textContent = N;
-    document.getElementById('s-edges').textContent = E;
-    document.getElementById('s-density').textContent = density;
-    document.getElementById('s-components').textContent = "Server"; 
+// ══════════════════════════════════════════════
+// VIS NETWORK
+// ══════════════════════════════════════════════
+function waitForVis(cb, tries=0) {
+  if (typeof vis !== 'undefined' && vis.Network && vis.DataSet) { cb(); return; }
+  if (tries > 100) {
+    toast('⚠ Graph renderer failed to load. Check internet or blocked scripts.');
+    return;
+  }
+  setTimeout(() => waitForVis(cb, tries+1), 50);
 }
 
-// --- VISUALIZATION ---
 function buildVisNetwork() {
+  if (!graphData || !graphData.nodes) return;
   waitForVis(() => {
     document.getElementById('graph-placeholder').style.display = 'none';
-    const render = graphRenderData || graphData;
-    if (!render) return;
 
-    const maxDeg = Math.max(1, ...render.nodes.map(n => n.degree || 0));
+    const nodes = graphData.nodes || [];
+    const edgesAll = graphData.edges || [];
+    let renderNodes = nodes;
+    let renderEdges = edgesAll;
+    let sampled = false;
 
-    const nodeArr = render.nodes.map(n => ({
+    if (nodes.length > MAX_RENDER_NODES) {
+      const nodesByDegree = [...nodes].sort((a,b) => (b.degree||0) - (a.degree||0));
+      renderNodes = nodesByDegree.slice(0, MAX_RENDER_NODES);
+      renderNodeIds = new Set(renderNodes.map(n => String(n.id)));
+      renderEdges = edgesAll.filter(e =>
+        renderNodeIds.has(String(e.from)) && renderNodeIds.has(String(e.to))
+      );
+      sampled = true;
+    } else {
+      renderNodeIds = new Set(nodes.map(n => String(n.id)));
+    }
+
+    if (renderEdges.length > MAX_RENDER_EDGES) {
+      const step = Math.ceil(renderEdges.length / MAX_RENDER_EDGES);
+      renderEdges = renderEdges.filter((_, i) => i % step === 0);
+    }
+
+    let maxDeg = 1;
+    for (const n of renderNodes) {
+      const d = Number(n.degree) || 0;
+      if (d > maxDeg) maxDeg = d;
+    }
+
+    const nodeArr = renderNodes.map(n => ({
       id: String(n.id), label: String(n.id),
-      size: 6 + ((n.degree || 0) / maxDeg) * 20,
-      color: { background: '#1a2e42', border: '#38bdf8' },
-      font: { color: '#e2e8f4', size: 10, face: 'Space Mono' },
+      size: 5 + ((n.degree||0)/maxDeg)*18,
+      color: { background: '#131628', border: '#2a3260' },
+      font: { color: '#dde4f5', size: 9, face: 'IBM Plex Mono' },
       borderWidth: 1.5,
     }));
-
-    const edgeArr = render.edges.map((e, i) => ({
+    const edgeArr = renderEdges.map((e,i) => ({
       id: i, from: String(e.from), to: String(e.to),
-      color: { color: 'rgba(56,189,248,0.15)' },
-      width: Math.min(1 + (Number(e.weight) || 1) * 0.3, 5)
+      color: { color: 'rgba(79,142,247,0.12)' },
+      width: Math.min(1 + (Number(e.weight)||1)*0.2, 4),
     }));
 
     visNodes = new vis.DataSet(nodeArr);
@@ -475,7 +1000,7 @@ function buildVisNetwork() {
 
     const heavy = edgeArr.length > 5000;
     const options = {
-      physics: heavy ? false : { stabilization: { iterations: 150 } },
+      physics: heavy ? false : { enabled: true, stabilization: { iterations: 120 } },
       edges: { smooth: false },
       interaction: { hover: true },
       layout: { improvedLayout: !heavy }
@@ -485,197 +1010,224 @@ function buildVisNetwork() {
     setTimeout(() => {
       network = new vis.Network(
         document.getElementById('graph-vis'),
-        { nodes: visNodes, edges: visEdges },
-        options
+        { nodes: visNodes, edges: visEdges }, options
       );
+      if (!heavy) {
+        network.once('stabilizationIterationsDone', () => {
+          network.setOptions({ physics: false });
+          network.fit({ animation: false });
+        });
+        network.stabilize(120);
+      } else {
+        network.fit({ animation: false });
+      }
     }, 0);
+
+    if (sampled) {
+      toast(`⚠ Large graph: rendering top ${MAX_RENDER_NODES.toLocaleString()} nodes`);
+    }
   });
 }
 
-// --- UI HELPERS ---
+// ══════════════════════════════════════════════
+// UI HELPERS
+// ══════════════════════════════════════════════
+function updateStats(nodes, edges, comms) {
+  document.getElementById('s-nodes').textContent = Number(nodes).toLocaleString();
+  document.getElementById('s-edges').textContent = Number(edges).toLocaleString();
+  const n = Number(nodes), e = Number(edges);
+  document.getElementById('s-density').textContent = n > 1
+    ? (2*e/(n*(n-1))).toFixed(4) : '—';
+  if (comms !== null)
+    document.getElementById('s-comms').textContent = comms;
+  document.getElementById('meta-nodes').textContent = n.toLocaleString() + ' nodes';
+  document.getElementById('meta-edges').textContent = e.toLocaleString() + ' edges';
+}
+
+function enableTaskButtons() {
+  ['community','centrality','node-pred','edge-pred'].forEach(t =>
+    document.getElementById('task-'+t).disabled = false);
+  const trainBtn = document.getElementById('train-gnn-btn');
+  if (trainBtn) trainBtn.disabled = false;
+  document.getElementById('run-community-btn').disabled = false;
+  document.getElementById('run-centrality-btn').disabled = false;
+  document.getElementById('run-node-btn').disabled = false;
+  document.getElementById('run-edge-btn').disabled = false;
+}
+
 function toggleLabels() {
+  if (!visNodes) return;
   showLabels = !showLabels;
-  const updates = visNodes.get().map(n => ({ id: n.id, label: showLabels ? n.id : '' }));
-  visNodes.update(updates);
+  visNodes.update(visNodes.get().map(n => ({ id: n.id, label: showLabels ? n.id : '' })));
   document.getElementById('toggle-labels-btn').textContent = 'Labels ' + (showLabels ? 'ON' : 'OFF');
+}
+
+function colorByCommunity() {
+  if (!visNodes || !graphData) return;
+  const idSet = renderNodeIds || new Set(visNodes.get().map(n => String(n.id)));
+  const updates = [];
+  graphData.nodes.forEach(n => {
+    const id = String(n.id);
+    if (!idSet.has(id)) return;
+    const commId = n.communities?.louvain ?? n.community ?? 0;
+    updates.push({ id, color: { background: COMM_COLORS[commId % COMM_COLORS.length] } });
+  });
+  if (updates.length) visNodes.update(updates);
+  toast('✅ Nodes colored by community');
 }
 
 function selectTask(task) {
   activeTask = task;
-  const tasks =['community','centrality','node-pred','edge-pred'];
-  tasks.forEach(t => document.getElementById('task-'+t).classList.toggle('active', t === task));
-  
-  const panels =['community','centrality','node-pred','edge-pred','none'];
-  panels.forEach(t => document.getElementById('task-'+t+'-panel').classList.toggle('active', t === task));
+  ['community','centrality','node-pred','edge-pred'].forEach(t =>
+    document.getElementById('task-'+t).classList.toggle('active', t === task));
+  ['community','centrality','node-pred','edge-pred','none'].forEach(t =>
+    document.getElementById('task-'+t+'-panel').classList.toggle('active', t === task));
+  document.getElementById('result-panel-sub').textContent = {
+    'community':  'Community Detection',
+    'centrality': 'Centrality Measures',
+    'node-pred':  'GNN Node Classification',
+    'edge-pred':  'Link Prediction',
+  }[task] || 'Select a task';
 }
 
-function setAlgo(category, algo, el) {
-  algoState[category] = algo;
+function setAlgo(cat, algo, el) {
+  algoState[cat] = algo;
   el.parentElement.querySelectorAll('.algo-tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
 }
 
-// --- COMMUNITIES (Pre-computed by Node.js) ---
+// ══════════════════════════════════════════════
+// COMMUNITY DETECTION
+// ══════════════════════════════════════════════
 function runCommunityDetection() {
+  if (isDemoMode) {
+    // Already shown from loadDemo
+    if (communityMeta) { showDemoCommunities(communityMeta); return; }
+  }
+  if (!graphData) return;
   const res = document.getElementById('community-results');
-  res.innerHTML = `<div style="padding:1rem"><span class="spinner"></span> Formatting results from server…</div>`;
-
+  res.innerHTML = `<div style="padding:1rem"><span class="spinner"></span> Formatting results…</div>`;
   setTimeout(() => {
     const groups = {};
+    const idSet = visNodes ? (renderNodeIds || new Set(visNodes.get().map(n => String(n.id)))) : null;
+    const updates = [];
     graphData.nodes.forEach(n => {
-        const cID = getCommunityId(n);
-        if (!groups[cID]) groups[cID] = [];
-        groups[cID].push(n.id);
-        
-        visNodes.update({ id: String(n.id), color: { background: COMM_COLORS[cID % COMM_COLORS.length] } });
+      const cID = n.communities?.[algoState.community] ?? n.community ?? 0;
+      if (!groups[cID]) groups[cID] = [];
+      groups[cID].push(n.id);
+      if (visNodes && idSet && idSet.has(String(n.id))) {
+        updates.push({ id: String(n.id),
+          color: { background: COMM_COLORS[cID % COMM_COLORS.length] } });
+      }
     });
-
-    const algoLabel = getCommunityLabel();
-    let html = `<div style="font-size:1.2rem;font-weight:bold;margin-bottom:10px">${Object.keys(groups).length} Communities Detected (${algoLabel})</div>`;
-    Object.entries(groups).forEach(([c, members]) => {
+    if (updates.length && visNodes) visNodes.update(updates);
+    let html = `<div style="font-size:0.72rem;color:var(--text2);margin-bottom:0.6rem;font-family:'IBM Plex Mono',monospace">${Object.keys(groups).length} COMMUNITIES (${algoState.community.toUpperCase()})</div>`;
+    Object.entries(groups).sort((a,b) => b[1].length - a[1].length).forEach(([c, members]) => {
       const col = COMM_COLORS[parseInt(c) % COMM_COLORS.length];
-      html += `<div style="border-left:3px solid ${col}; padding:10px; margin-bottom:10px; background:var(--bg3);">
-        <b>Community ${c}</b> (${members.length} nodes)<br>
-        <span style="font-size:0.75rem; color:var(--text2)">${members.slice(0, 10).join(', ')}...</span>
+      html += `<div class="comm-card" onclick="toggleCommCard(this)">
+        <div class="comm-card-header">
+          <div class="comm-color-bar" style="background:${col}"></div>
+          <div class="comm-info">
+            <div class="comm-theme">Community ${c}</div>
+            <div class="comm-meta">${members.length} nodes</div>
+          </div>
+          <div class="comm-size-badge">${members.length}</div>
+        </div>
+        <div class="comm-words">${members.slice(0,15).map(m=>`<span class="word-chip">${m}</span>`).join('')}</div>
       </div>`;
     });
-
     res.innerHTML = html;
-    document.getElementById('color-comm-btn').disabled = false;
-    document.getElementById('download-community-btn').disabled = false;
-    toast(`Communities visualized (${algoLabel})`);
+    document.getElementById('dl-comm-btn').disabled = false;
+    document.getElementById('s-comms').textContent = Object.keys(groups).length;
+    toast(`${Object.keys(groups).length} communities detected`);
   }, 300);
 }
 
 function downloadCommunityCSV() {
-  if (!graphData || !graphData.nodes) return toast('No graph loaded.');
-
-  const algo = algoState.community;
-  const header = `node,community_${algo}`;
-  const rows = graphData.nodes.map(n => `${csvEscape(n.id)},${getCommunityId(n)}`);
-  const csvText = [header, ...rows].join('\n');
-  const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
+  if (!graphData?.nodes) return;
+  const algo   = algoState.community;
+  const rows   = graphData.nodes.map(n =>
+    `${n.id},${n.communities?.[algo] ?? n.community ?? 0}`);
+  const blob   = new Blob([`node,community_${algo}\n` + rows.join('\n')],
+    { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
-  const baseNameRaw = document.getElementById('status-txt').textContent || 'graph';
-  const baseName = baseNameRaw.replace(/[^a-z0-9_-]+/gi, '_') || 'graph';
-  a.href = url;
-  a.download = `${baseName}_communities_${algo}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  a.href = URL.createObjectURL(blob);
+  a.download = `communities_${algo}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
 }
 
-// --- CENTRALITY (Pre-computed by Node.js) ---
+// ══════════════════════════════════════════════
+// CENTRALITY
+// ══════════════════════════════════════════════
 function runCentrality() {
-  const algo = algoState.centrality; 
-  const res = document.getElementById('centrality-results');
-  
-  const sorted =[...graphData.nodes].sort((a,b) => b.centrality[algo] - a.centrality[algo]);
-  
-  let html = `<div style="margin-bottom:10px; font-weight:bold; font-family:'Space Mono'">Top Nodes by ${algo.toUpperCase()}</div>`;
-  sorted.slice(0, 20).forEach((n, i) => {
-      const val = Number(n.centrality[algo] || 0).toFixed(4);
-      html += `<div class="result-item">
-        <span style="font-family:'Space Mono'; font-size: 0.8rem">${i+1}. ${n.id}</span>
-        <span style="color:var(--accent); font-family:'Space Mono'; font-size: 0.8rem">${val}</span>
-      </div>`;
+  if (!graphData) return;
+  const algo   = algoState.centrality;
+  const sorted = [...graphData.nodes].sort((a,b) =>
+    (b.centrality?.[algo]||0) - (a.centrality?.[algo]||0));
+  let html = `<div style="margin-bottom:0.5rem;font-weight:600;font-family:'IBM Plex Mono',monospace;font-size:0.72rem">TOP 20 — ${algo.toUpperCase()}</div>`;
+  sorted.slice(0,20).forEach((n,i) => {
+    const val = Number(n.centrality?.[algo]||0).toFixed(4);
+    html += `<div class="result-item">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:0.75rem">${i+1}. ${n.id}</span>
+      <span style="color:var(--accent);font-family:'IBM Plex Mono',monospace;font-size:0.75rem">${val}</span>
+    </div>`;
   });
-  
-  res.innerHTML = html;
-  toast(`✅ Centrality mapped`);
+  document.getElementById('centrality-results').innerHTML = html;
+  toast('Centrality computed');
 }
 
-// --- TF.JS NODE PREDICTION ON BACKEND ---
-async function runNodePrediction() {
-  const name = document.getElementById('new-node-name').value.trim();
-  const conns = document.getElementById('new-node-connections').value.split(',').map(s=>s.trim()).filter(Boolean);
-  const res = document.getElementById('node-pred-results');
-  
-  if(!name || conns.length === 0) return toast("⚠️ Please enter a node and connections.");
-
-  res.innerHTML = `<div style="padding:1rem"><span class="spinner"></span> Running TF.js GNN Inference on Server…</div>`;
-
-  const payload = { nodes: graphData.nodes, newConnections: conns };
-
-  try {
-      const response = await fetch('/api/predict-node', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-      });
-
-      let pred = null;
-      try { pred = await response.json(); } catch (e) { /* no-op */ }
-      if (!response.ok) {
-          const msg = pred && pred.error ? pred.error : 'Failed to predict node.';
-          throw new Error(msg);
-      }
-      const commCol = COMM_COLORS[pred.predictedCommunity % COMM_COLORS.length];
-
-      res.innerHTML = `
-        <div class="pred-result-box">
-          <div class="pred-title">GNN Predicted Community</div>
-          <div class="pred-main" style="color:${commCol}">Community ${pred.predictedCommunity}</div>
-          <div class="pred-conf">Confidence: ${pred.confidence}%</div>
-        </div>
-        <div class="pred-result-box">
-          <div class="pred-title">Structural Role</div>
-          <div class="pred-main" style="color:var(--purple)">${pred.role}</div>
-        </div>
-      `;
-  } catch(e) { toast("⚠️ " + e.message); }
-}
-
-// --- TF.JS EDGE PREDICTION ON BACKEND ---
+// ══════════════════════════════════════════════
+// LINK PREDICTION (Adamic-Adar heuristic)
+// ══════════════════════════════════════════════
 async function runEdgePrediction() {
-  const name = document.getElementById('edge-node-name').value.trim();
-  const conns = document.getElementById('edge-node-connections').value.split(',').map(s=>s.trim()).filter(Boolean);
-  const topK = parseInt(document.getElementById('edge-topk').value) || 8;
-  const res = document.getElementById('edge-pred-results');
-
-  if(!name || conns.length === 0) return toast("⚠️ Please enter a node and connections.");
-
-  res.innerHTML = `<div style="padding:1rem"><span class="spinner"></span> Computing Tensor Probabilities on Server…</div>`;
-
-  const payload = { nodes: graphData.nodes, edges: graphData.edges, newNodeId: name, newConnections: conns, topK };
-
+  const name  = document.getElementById('edge-node-name').value.trim();
+  const conns = document.getElementById('edge-node-connections').value
+    .split(',').map(s=>s.trim()).filter(Boolean);
+  const topK  = parseInt(document.getElementById('edge-topk').value)||8;
+  const res   = document.getElementById('edge-pred-results');
+  if (!name || !conns.length) return toast('⚠ Enter node and connections.');
+  res.innerHTML = `<div style="padding:1rem"><span class="spinner"></span> Computing link probabilities…</div>`;
   try {
-      const response = await fetch('/api/predict-edge', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-      });
-
-      let data = null;
-      try { data = await response.json(); } catch (e) { /* no-op */ }
-      if (!response.ok) {
-          const msg = data && data.error ? data.error : 'Failed to predict edges.';
-          throw new Error(msg);
-      }
-      
-      let html = `<div style="margin-bottom:10px"><b>Predicted Edges for ${name}</b></div>`;
-      data.predictions.forEach(p => {
-          html += `<div class="result-item">
-              <span style="font-family:'Space Mono'; font-size: 0.8rem">${name} ── ${p.id}</span>
-              <span style="color:var(--green); font-family:'Space Mono'; font-size: 0.8rem">Prob: ${p.prob}%</span>
-          </div>`;
-      });
-
-      res.innerHTML = html;
-  } catch(e) { toast("⚠️ " + e.message); }
+    const r = await fetch('/api/predict-edge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodes: graphData.nodes, edges: graphData.edges,
+                             newNodeId: name, newConnections: conns, topK,
+                             useGNN: (!isDemoMode && gnnOnline) })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    let html = `<div style="margin-bottom:0.5rem;font-weight:600;font-family:'IBM Plex Mono',monospace;font-size:0.72rem">PREDICTED EDGES FOR "${name}"</div>`;
+    d.predictions.forEach(p => {
+      html += `<div class="result-item">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:0.72rem">${name} ── ${p.id}</span>
+        <span style="color:var(--green);font-family:'IBM Plex Mono',monospace;font-size:0.72rem">${p.prob}%</span>
+      </div>`;
+    });
+    res.innerHTML = html;
+  } catch(e) { toast('⚠ ' + e.message); }
 }
 
+// ══════════════════════════════════════════════
+// MISC
+// ══════════════════════════════════════════════
 function resetAll() { location.reload(); }
 
 let toastTimer;
 function toast(msg) {
   const el = document.getElementById('toast');
-  el.textContent = msg; el.classList.remove('hidden');
+  el.textContent = msg;
+  el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.add('hidden'), 3000);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
 }
+
+window.addEventListener('resize', () => {
+  if (network && currentView === 'graph') {
+    network.redraw();
+    network.fit({ animation: false });
+  }
+});
 </script>
 </body>
 </html>
