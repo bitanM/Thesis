@@ -219,6 +219,24 @@ def get_neighbors(edge_index, node_idx):
     return set(dst[mask].tolist())
 
 # ──────────────────────────────────────────────
+# ROOT
+@app.route('/', methods=['GET'])
+def root():
+    return jsonify({
+        'status': 'ok',
+        'service': 'graphml-studio-gnn',
+        'endpoints': [
+            '/health',
+            '/gnn/train',
+            '/gnn/user/predict-node',
+            '/gnn/user/predict-edge',
+            '/gnn/user/embeddings',
+            '/gnn/demo/load',
+            '/gnn/demo/communities',
+            '/gnn/demo/embeddings',
+        ],
+    })
+
 # HEALTH CHECK
 # ──────────────────────────────────────────────
 @app.route('/health', methods=['GET'])
