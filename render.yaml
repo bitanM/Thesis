@@ -4,9 +4,15 @@ services:
     runtime: python
     plan: free
     rootDir: graphml-studio
-    buildCommand: pip install -r requirements.txt
+    buildCommand: >-
+      pip install --upgrade pip &&
+      pip install torch==2.1.0 --index-url https://download.pytorch.org/whl/cpu &&
+      pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.1.0+cpu.html &&
+      pip install -r gnn_services/requirements.txt
     startCommand: python gnn_services/app.py
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.11"
       - key: PYTHONUNBUFFERED
         value: "1"
 
