@@ -2,6 +2,7 @@ const express = require('express');
 const multer  = require('multer');
 const csv     = require('csv-parser');
 const http    = require('http');
+const https   = require('https');
 const { Readable } = require('stream');
 const Graph   = require('graphology');
 const betweenness = require('graphology-metrics/centrality/betweenness');
@@ -50,19 +51,57 @@ function buildSampleGraph(fullGraph, edgesList) {
 }
 
 // ── Python GNN service config ──
+const RAW_GNN_URL = process.env.GNN_URL || '';
+const GNN_URL = RAW_GNN_URL && !/^[a-zA-Z]+:\/\//.test(RAW_GNN_URL)
+  ? `http://${RAW_GNN_URL}`
+  : RAW_GNN_URL;
 const GNN_HOST = process.env.GNN_HOST || 'localhost';
 const GNN_PORT = Number(process.env.GNN_PORT || 5001);
 let   gnnAvailable = false;
 
 // Check GNN service availability on startup and every 30s
+function buildGNNOptions(path, method, bodyStr = '') {
+  if (GNN_URL) {
+    const u = new URL(GNN_URL);
+    const basePath = u.pathname === '/' ? '' : u.pathname.replace(/\/$/, '');
+    return {
+      protocol: u.protocol,
+      host: u.hostname,
+      port: u.port || (u.protocol === 'https:' ? 443 : 80),
+      path: basePath + path,
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(bodyStr),
+      },
+      timeout: 2000,
+    };
+  }
+  return {
+    protocol: 'http:',
+    host: GNN_HOST,
+    port: GNN_PORT,
+    path,
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(bodyStr),
+    },
+    timeout: 2000,
+  };
+}
+
+function gnnRequest(options, onResponse) {
+  const mod = options.protocol === 'https:' ? https : http;
+  return mod.request(options, onResponse);
+}
+
 function checkGNNService() {
-  const req = http.request(
-    { host: GNN_HOST, port: GNN_PORT, path: '/health', method: 'GET', timeout: 2000 },
-    (res) => {
-      gnnAvailable = res.statusCode === 200;
-      if (gnnAvailable) console.log('[GNN] Python service is online ✓');
-    }
-  );
+  const options = buildGNNOptions('/health', 'GET', '');
+  const req = gnnRequest(options, (res) => {
+    gnnAvailable = res.statusCode === 200;
+    if (gnnAvailable) console.log('[GNN] Python service is online ✓');
+  });
   req.on('error', () => { gnnAvailable = false; });
   req.on('timeout', () => { req.destroy(); gnnAvailable = false; });
   req.end();
@@ -82,18 +121,9 @@ function proxyToGNN(path, method, body, res) {
   }
 
   const bodyStr = body ? JSON.stringify(body) : '';
-  const options = {
-    host:    GNN_HOST,
-    port:    GNN_PORT,
-    path,
-    method,
-    headers: {
-      'Content-Type':   'application/json',
-      'Content-Length': Buffer.byteLength(bodyStr),
-    },
-  };
+  const options = buildGNNOptions(path, method, bodyStr);
 
-  const proxyReq = http.request(options, (proxyRes) => {
+  const proxyReq = gnnRequest(options, (proxyRes) => {
     let data = '';
     proxyRes.on('data', chunk => data += chunk);
     proxyRes.on('end', () => {
@@ -119,17 +149,7 @@ app.get('/api/gnn/status', (req, res) => {
   if (!gnnAvailable) {
     return res.json({ available: false, message: 'GNN service offline' });
   }
-  const options = { host: GNN_HOST, port: GNN_PORT, path: '/health', method: 'GET' };
-  const proxyReq = http.request(options, (proxyRes) => {
-    let data = '';
-    proxyRes.on('data', chunk => data += chunk);
-    proxyRes.on('end', () => {
-      try { res.json({ available: true, ...JSON.parse(data) }); }
-      catch (e) { res.json({ available: true }); }
-    });
-  });
-  proxyReq.on('error', () => res.json({ available: false }));
-  proxyReq.end();
+  proxyToGNN('/health', 'GET', null, res);
 });
 
 // ── Demo mode: load Farmer's Protest pre-trained model ──
@@ -139,38 +159,12 @@ app.post('/api/gnn/demo/load', (req, res) => {
 
 // ── Demo mode: get t-SNE embeddings ──
 app.get('/api/gnn/demo/embeddings', (req, res) => {
-  if (!gnnAvailable) {
-    return res.status(503).json({ error: 'GNN service unavailable.' });
-  }
-  const options = { host: GNN_HOST, port: GNN_PORT,
-                    path: '/gnn/demo/embeddings', method: 'GET' };
-  const proxyReq = http.request(options, (proxyRes) => {
-    let data = '';
-    proxyRes.on('data', chunk => data += chunk);
-    proxyRes.on('end', () => {
-      try { res.status(proxyRes.statusCode).json(JSON.parse(data)); }
-      catch (e) { res.status(500).json({ error: 'Parse error' }); }
-    });
-  });
-  proxyReq.on('error', (err) => res.status(503).json({ error: err.message }));
-  proxyReq.end();
+  proxyToGNN('/gnn/demo/embeddings', 'GET', null, res);
 });
 
 // ── Demo mode: get community details ──
 app.get('/api/gnn/demo/communities', (req, res) => {
-  if (!gnnAvailable) return res.status(503).json({ error: 'GNN service unavailable.' });
-  const options = { host: GNN_HOST, port: GNN_PORT,
-                    path: '/gnn/demo/communities', method: 'GET' };
-  const proxyReq = http.request(options, (proxyRes) => {
-    let data = '';
-    proxyRes.on('data', chunk => data += chunk);
-    proxyRes.on('end', () => {
-      try { res.status(proxyRes.statusCode).json(JSON.parse(data)); }
-      catch (e) { res.status(500).json({ error: 'Parse error' }); }
-    });
-  });
-  proxyReq.on('error', (err) => res.status(503).json({ error: err.message }));
-  proxyReq.end();
+  proxyToGNN('/gnn/demo/communities', 'GET', null, res);
 });
 
 // ── Demo mode: node search ──
@@ -190,19 +184,7 @@ app.post('/api/gnn/train', (req, res) => {
 
 // ── User upload: get embeddings ──
 app.get('/api/gnn/user/embeddings', (req, res) => {
-  if (!gnnAvailable) return res.status(503).json({ error: 'GNN service unavailable.' });
-  const options = { host: GNN_HOST, port: GNN_PORT,
-                    path: '/gnn/user/embeddings', method: 'GET' };
-  const proxyReq = http.request(options, (proxyRes) => {
-    let data = '';
-    proxyRes.on('data', chunk => data += chunk);
-    proxyRes.on('end', () => {
-      try { res.status(proxyRes.statusCode).json(JSON.parse(data)); }
-      catch (e) { res.status(500).json({ error: 'Parse error' }); }
-    });
-  });
-  proxyReq.on('error', (err) => res.status(503).json({ error: err.message }));
-  proxyReq.end();
+  proxyToGNN('/gnn/user/embeddings', 'GET', null, res);
 });
 
 // ── User upload: predict node ──

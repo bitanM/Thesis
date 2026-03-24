@@ -1,8 +1,9 @@
 services:
-  - type: pserv
+  - type: web
     name: graphml-studio-gnn
     runtime: python
-    rootDir: .
+    plan: free
+    rootDir: graphml-studio
     buildCommand: pip install -r requirements.txt
     startCommand: python gnn_services/app.py
     envVars:
@@ -12,17 +13,18 @@ services:
   - type: web
     name: graphml-studio-web
     runtime: node
-    rootDir: .
+    plan: free
+    rootDir: graphml-studio
     buildCommand: npm install
     startCommand: node server.js
     envVars:
       - key: GNN_HOST
         fromService:
           name: graphml-studio-gnn
-          type: pserv
+          type: web
           property: host
       - key: GNN_PORT
         fromService:
           name: graphml-studio-gnn
-          type: pserv
+          type: web
           property: port
