@@ -9,3 +9,5 @@ openpyxl
 python-Levenshtein
 deep-translator
 ollama
+flask
+flask-cors
