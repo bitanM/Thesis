@@ -1,0 +1,28 @@
+services:
+  - type: pserv
+    name: graphml-studio-gnn
+    runtime: python
+    rootDir: .
+    buildCommand: pip install -r requirements.txt
+    startCommand: python gnn_services/app.py
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+
+  - type: web
+    name: graphml-studio-web
+    runtime: node
+    rootDir: .
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: GNN_HOST
+        fromService:
+          name: graphml-studio-gnn
+          type: pserv
+          property: host
+      - key: GNN_PORT
+        fromService:
+          name: graphml-studio-gnn
+          type: pserv
+          property: port

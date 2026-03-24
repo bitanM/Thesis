@@ -50,8 +50,8 @@ function buildSampleGraph(fullGraph, edgesList) {
 }
 
 // ── Python GNN service config ──
-const GNN_HOST = 'localhost';
-const GNN_PORT = 5001;
+const GNN_HOST = process.env.GNN_HOST || 'localhost';
+const GNN_PORT = Number(process.env.GNN_PORT || 5001);
 let   gnnAvailable = false;
 
 // Check GNN service availability on startup and every 30s
@@ -476,9 +476,10 @@ app.post('/api/predict-edge', (req, res) => {
 
 if (require.main === module) {
   startGNNServiceMonitor();
-  app.listen(3000, () => {
-    console.log('✅ GraphML Studio running on http://localhost:3000');
-    console.log('   GNN service expected at http://localhost:5001');
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`GraphML Studio running on port ${PORT}`);
+    console.log(`   GNN service expected at http://${GNN_HOST}:${GNN_PORT}`);
   });
 }
 module.exports = app;
