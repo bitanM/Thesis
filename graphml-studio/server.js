@@ -57,6 +57,7 @@ const GNN_URL = RAW_GNN_URL && !/^[a-zA-Z]+:\/\//.test(RAW_GNN_URL)
   : RAW_GNN_URL;
 const GNN_HOST = process.env.GNN_HOST || 'localhost';
 const GNN_PORT = Number(process.env.GNN_PORT || 5001);
+const GNN_TIMEOUT_MS = Number(process.env.GNN_TIMEOUT_MS || (GNN_URL ? 15000 : 2000));
 let   gnnAvailable = false;
 
 // Check GNN service availability on startup and every 30s
@@ -74,7 +75,7 @@ function buildGNNOptions(path, method, bodyStr = '') {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(bodyStr),
       },
-      timeout: 2000,
+      timeout: GNN_TIMEOUT_MS,
     };
   }
   return {
@@ -87,7 +88,7 @@ function buildGNNOptions(path, method, bodyStr = '') {
       'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(bodyStr),
     },
-    timeout: 2000,
+    timeout: GNN_TIMEOUT_MS,
   };
 }
 
@@ -96,15 +97,30 @@ function gnnRequest(options, onResponse) {
   return mod.request(options, onResponse);
 }
 
-function checkGNNService() {
-  const options = buildGNNOptions('/health', 'GET', '');
-  const req = gnnRequest(options, (res) => {
-    gnnAvailable = res.statusCode === 200;
-    if (gnnAvailable) console.log('[GNN] Python service is online ✓');
+function probeGNN() {
+  return new Promise((resolve) => {
+    const options = buildGNNOptions('/health', 'GET', '');
+    const req = gnnRequest(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        resolve({ ok: res.statusCode === 200, data });
+      });
+    });
+    req.on('error', (err) => resolve({ ok: false, error: err }));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve({ ok: false, error: new Error('timeout') });
+    });
+    req.end();
   });
-  req.on('error', () => { gnnAvailable = false; });
-  req.on('timeout', () => { req.destroy(); gnnAvailable = false; });
-  req.end();
+}
+
+function checkGNNService() {
+  probeGNN().then(({ ok }) => {
+    gnnAvailable = ok;
+    if (gnnAvailable) console.log('[GNN] Python service is online ✓');
+  }).catch(() => { gnnAvailable = false; });
 }
 function startGNNServiceMonitor() {
   checkGNNService();
@@ -113,13 +129,6 @@ function startGNNServiceMonitor() {
 
 // ── GNN proxy helper ──
 function proxyToGNN(path, method, body, res) {
-  if (!gnnAvailable) {
-    return res.status(503).json({
-      error: 'GNN service unavailable. Start the Python Flask service on port 5001.',
-      hint:  'cd gnn_services && python app.py'
-    });
-  }
-
   const bodyStr = body ? JSON.stringify(body) : '';
   const options = buildGNNOptions(path, method, bodyStr);
 
@@ -127,6 +136,7 @@ function proxyToGNN(path, method, body, res) {
     let data = '';
     proxyRes.on('data', chunk => data += chunk);
     proxyRes.on('end', () => {
+      gnnAvailable = true;
       try {
         res.status(proxyRes.statusCode).json(JSON.parse(data));
       } catch (e) {
@@ -145,11 +155,24 @@ function proxyToGNN(path, method, body, res) {
 }
 
 // ── GNN service status ──
-app.get('/api/gnn/status', (req, res) => {
-  if (!gnnAvailable) {
+app.get('/api/gnn/status', async (req, res) => {
+  try {
+    const result = await probeGNN();
+    if (!result.ok) {
+      gnnAvailable = false;
+      return res.json({ available: false, message: 'GNN service offline' });
+    }
+    gnnAvailable = true;
+    try {
+      const payload = JSON.parse(result.data || '{}');
+      return res.json({ available: true, ...payload });
+    } catch (e) {
+      return res.json({ available: true });
+    }
+  } catch (e) {
+    gnnAvailable = false;
     return res.json({ available: false, message: 'GNN service offline' });
   }
-  proxyToGNN('/health', 'GET', null, res);
 });
 
 // ── Demo mode: load Farmer's Protest pre-trained model ──

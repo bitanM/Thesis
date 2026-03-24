@@ -24,13 +24,5 @@ services:
     buildCommand: npm install
     startCommand: node server.js
     envVars:
-      - key: GNN_HOST
-        fromService:
-          name: graphml-studio-gnn
-          type: web
-          property: host
-      - key: GNN_PORT
-        fromService:
-          name: graphml-studio-gnn
-          type: web
-          property: port
+      - key: GNN_URL
+        value: https://graphml-studio-gnn.onrender.com
