@@ -1,6 +1,7 @@
 pandas
 numpy
 torch
+torch_geometric
 transformers
 scikit-learn
 tqdm

@@ -462,23 +462,43 @@ function updateGNNButton() {
   btn.classList.toggle('active', gnnOnline);
 }
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function pollGNNStatus(attempts = 12, delayMs = 5000) {
+  for (let i = 0; i < attempts; i++) {
+    await checkGNNStatus();
+    if (gnnOnline) return true;
+    await sleep(delayMs);
+  }
+  return false;
+}
+
 async function wakeGNN() {
   const btn = document.getElementById('gnn-wake-btn');
   if (!btn) return;
   const prev = btn.textContent;
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Waking...';
+  let warmed = false;
   try {
     const r = await fetch('/api/gnn/wake', { method: 'POST' });
     const d = await r.json();
-    if (!r.ok || !d.available) throw new Error(d.message || 'GNN still offline');
-    toast('GNN is online');
+    if (r.ok && d.available) {
+      warmed = true;
+      toast('GNN is online');
+    } else {
+      toast('Warming GNN service...');
+      warmed = await pollGNNStatus();
+      if (warmed) toast('GNN is online');
+    }
   } catch(e) {
     toast('GNN still offline. Try again in a few seconds.');
   } finally {
     btn.disabled = false;
     btn.textContent = prev || 'GNN Online';
-    await checkGNNStatus();
+    if (!warmed) await checkGNNStatus();
   }
 }
 
