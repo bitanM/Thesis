@@ -466,7 +466,7 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function pollGNNStatus(attempts = 36, delayMs = 5000) {
+async function pollGNNStatus(attempts = 60, delayMs = 5000) {
   for (let i = 0; i < attempts; i++) {
     await checkGNNStatus();
     if (gnnOnline) return true;
@@ -489,7 +489,7 @@ async function wakeGNN() {
       warmed = true;
       toast('GNN is online');
     } else {
-      toast('Warming GNN service. Render cold starts can take 2-3 minutes.');
+      toast('Warming GNN service. Render cold starts can take 2-4 minutes.');
       warmed = await pollGNNStatus();
       if (warmed) toast('GNN is online');
     }

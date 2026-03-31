@@ -185,7 +185,7 @@ app.get('/api/gnn/status', async (req, res) => {
 });
 
 // Wake GNN (forces a live health probe to warm the service)
-app.post('/api/gnn/wake', async (req, res) => {
+async function handleGNNWake(req, res) {
   try {
     const result = await probeGNN(GNN_WAKE_TIMEOUT_MS);
     if (!result.ok) {
@@ -209,7 +209,10 @@ app.post('/api/gnn/wake', async (req, res) => {
     gnnAvailable = false;
     return res.json({ available: false, message: 'GNN service offline' });
   }
-});
+}
+
+app.post('/api/gnn/wake', handleGNNWake);
+app.get('/api/gnn/wake', handleGNNWake);
 
 // ── Demo mode: load Farmer's Protest pre-trained model ──
 app.post('/api/gnn/demo/load', (req, res) => {
