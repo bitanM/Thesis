@@ -52,9 +52,11 @@ function buildSampleGraph(fullGraph, edgesList) {
 
 // ── Python GNN service config ──
 const RAW_GNN_URL = process.env.GNN_URL || '';
-const GNN_URL = RAW_GNN_URL && !/^[a-zA-Z]+:\/\//.test(RAW_GNN_URL)
-  ? `http://${RAW_GNN_URL}`
-  : RAW_GNN_URL;
+let GNN_URL = RAW_GNN_URL;
+if (RAW_GNN_URL && !/^[a-zA-Z]+:\/\//.test(RAW_GNN_URL)) {
+  const isLocal = /^localhost(:|$)|^127\.0\.0\.1(:|$)/.test(RAW_GNN_URL);
+  GNN_URL = `${isLocal ? 'http' : 'https'}://${RAW_GNN_URL}`;
+}
 const GNN_HOST = process.env.GNN_HOST || 'localhost';
 const GNN_PORT = Number(process.env.GNN_PORT || 5001);
 const GNN_TIMEOUT_MS = Number(process.env.GNN_TIMEOUT_MS || (GNN_URL ? 15000 : 2000));
