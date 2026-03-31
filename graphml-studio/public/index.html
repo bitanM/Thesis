@@ -266,6 +266,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
   </div>
   <div class="menu-group">
     <span class="menu-label">GNN</span>
+    <button class="menu-btn" id="gnn-wake-btn" onclick="wakeGNN()">GNN Online</button>
     <button class="menu-btn" id="train-gnn-btn" onclick="trainGNN()" disabled>Train GNN</button>
     <button class="menu-btn" id="task-node-pred" onclick="selectTask('node-pred')" disabled>Node Classify</button>
     <button class="menu-btn" id="task-edge-pred" onclick="selectTask('edge-pred')" disabled>Link Predict</button>
@@ -455,6 +456,32 @@ const MAX_RENDER_EDGES = 15000;
 // ══════════════════════════════════════════════
 // GNN STATUS CHECK
 // ══════════════════════════════════════════════
+function updateGNNButton() {
+  const btn = document.getElementById('gnn-wake-btn');
+  if (!btn) return;
+  btn.classList.toggle('active', gnnOnline);
+}
+
+async function wakeGNN() {
+  const btn = document.getElementById('gnn-wake-btn');
+  if (!btn) return;
+  const prev = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Waking...';
+  try {
+    const r = await fetch('/api/gnn/wake', { method: 'POST' });
+    const d = await r.json();
+    if (!r.ok || !d.available) throw new Error(d.message || 'GNN still offline');
+    toast('GNN is online');
+  } catch(e) {
+    toast('GNN still offline. Try again in a few seconds.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = prev || 'GNN Online';
+    await checkGNNStatus();
+  }
+}
+
 async function checkGNNStatus() {
   try {
     const r = await fetch('/api/gnn/status');
@@ -471,7 +498,14 @@ async function checkGNNStatus() {
     }
   } catch(e) {
     gnnOnline = false;
+    const badge = document.getElementById('gnn-badge');
+    const txt   = document.getElementById('gnn-badge-txt');
+    if (badge && txt) {
+      badge.className = 'gnn-badge';
+      txt.textContent = 'GNN offline';
+    }
   }
+  updateGNNButton();
 }
 checkGNNStatus();
 setInterval(checkGNNStatus, 15000);

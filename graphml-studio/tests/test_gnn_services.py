@@ -452,7 +452,7 @@ class TestTrainingPipeline:
             'pmi_max': np.random.uniform(1, 15, 30),
             'louvain_label': [i % 3 for i in range(30)],
         })
-        # Need enough edges for 80/10/10 split
+        # Need enough edges for 80/15/5 split
         edges = pd.DataFrame({
             'source': [f'w{i}' for i in range(29)] + [f'w{i}' for i in range(0, 20)],
             'target': [f'w{i+1}' for i in range(29)] + [f'w{i+5}' for i in range(0, 20)],

@@ -21,8 +21,15 @@ def train_node_classification(data, num_classes, epochs=100, hidden=128,
     Train GraphSAGE for node classification on user-uploaded graph.
     Returns trained model + metrics dict.
     """
-    # Split nodes
-    transform = RandomNodeSplit(split='train_rest', num_val=0.2, num_test=0.2)
+    # Split nodes (5% train, 15% val, 80% test by default)
+    train_frac = 0.05
+    val_frac = 0.15
+    test_frac = 1.0 - train_frac - val_frac
+    # Fallback for very small graphs to avoid empty train split
+    if data.num_nodes < 20:
+        val_frac = 0.2
+        test_frac = 0.2
+    transform = RandomNodeSplit(split='train_rest', num_val=val_frac, num_test=test_frac)
     data = transform(data)
 
     # Class weights for imbalance
@@ -95,8 +102,12 @@ def train_link_prediction(data, epochs=80, hidden=128,
     """
     from sklearn.metrics import average_precision_score
 
+    # Split edges (5% train, 15% val, 80% test by default)
+    train_frac = 0.05
+    val_frac = 0.15
+    test_frac = 1.0 - train_frac - val_frac
     lp_transform = RandomLinkSplit(
-        num_val=0.1, num_test=0.1,
+        num_val=val_frac, num_test=test_frac,
         is_undirected=True,
         add_negative_train_samples=True,
         neg_sampling_ratio=1.0,
