@@ -108,7 +108,7 @@ function probeGNN(timeoutMs) {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
-        resolve({ ok: res.statusCode === 200, data });
+        resolve({ ok: res.statusCode === 200, statusCode: res.statusCode, data });
       });
     });
     req.on('error', (err) => resolve({ ok: false, error: err }));
@@ -164,7 +164,12 @@ app.get('/api/gnn/status', async (req, res) => {
     const result = await probeGNN();
     if (!result.ok) {
       gnnAvailable = false;
-      return res.json({ available: false, message: 'GNN service offline' });
+      return res.json({
+        available: false,
+        message: 'GNN service offline',
+        status: result.statusCode || null,
+        error: result.error ? String(result.error.message || result.error) : null,
+      });
     }
     gnnAvailable = true;
     try {
@@ -185,7 +190,13 @@ app.post('/api/gnn/wake', async (req, res) => {
     const result = await probeGNN(GNN_WAKE_TIMEOUT_MS);
     if (!result.ok) {
       gnnAvailable = false;
-      return res.json({ available: false, warming: true, message: 'Warming GNN service' });
+      return res.json({
+        available: false,
+        warming: true,
+        message: 'Warming GNN service',
+        status: result.statusCode || null,
+        error: result.error ? String(result.error.message || result.error) : null,
+      });
     }
     gnnAvailable = true;
     try {
