@@ -61,6 +61,7 @@ const GNN_HOST = process.env.GNN_HOST || 'localhost';
 const GNN_PORT = Number(process.env.GNN_PORT || 5001);
 const GNN_TIMEOUT_MS = Number(process.env.GNN_TIMEOUT_MS || (GNN_URL ? 15000 : 2000));
 const GNN_WAKE_TIMEOUT_MS = Number(process.env.GNN_WAKE_TIMEOUT_MS || 10000);
+const GNN_PUBLIC_URL = process.env.GNN_PUBLIC_URL || GNN_URL;
 let   gnnAvailable = false;
 
 // Check GNN service availability on startup and every 30s
@@ -167,6 +168,7 @@ app.get('/api/gnn/status', async (req, res) => {
       return res.json({
         available: false,
         message: 'GNN service offline',
+        gnn_url: GNN_PUBLIC_URL || null,
         status: result.statusCode || null,
         error: result.error ? String(result.error.message || result.error) : null,
       });
@@ -174,13 +176,13 @@ app.get('/api/gnn/status', async (req, res) => {
     gnnAvailable = true;
     try {
       const payload = JSON.parse(result.data || '{}');
-      return res.json({ available: true, ...payload });
+      return res.json({ available: true, gnn_url: GNN_PUBLIC_URL || null, ...payload });
     } catch (e) {
-      return res.json({ available: true });
+      return res.json({ available: true, gnn_url: GNN_PUBLIC_URL || null });
     }
   } catch (e) {
     gnnAvailable = false;
-    return res.json({ available: false, message: 'GNN service offline' });
+    return res.json({ available: false, message: 'GNN service offline', gnn_url: GNN_PUBLIC_URL || null });
   }
 });
 
@@ -194,6 +196,7 @@ async function handleGNNWake(req, res) {
         available: false,
         warming: true,
         message: 'Warming GNN service',
+        gnn_url: GNN_PUBLIC_URL || null,
         status: result.statusCode || null,
         error: result.error ? String(result.error.message || result.error) : null,
       });
@@ -201,13 +204,13 @@ async function handleGNNWake(req, res) {
     gnnAvailable = true;
     try {
       const payload = JSON.parse(result.data || '{}');
-      return res.json({ available: true, ...payload });
+      return res.json({ available: true, gnn_url: GNN_PUBLIC_URL || null, ...payload });
     } catch (e) {
-      return res.json({ available: true });
+      return res.json({ available: true, gnn_url: GNN_PUBLIC_URL || null });
     }
   } catch (e) {
     gnnAvailable = false;
-    return res.json({ available: false, message: 'GNN service offline' });
+    return res.json({ available: false, message: 'GNN service offline', gnn_url: GNN_PUBLIC_URL || null });
   }
 }
 

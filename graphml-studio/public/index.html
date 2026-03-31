@@ -435,6 +435,7 @@ let renderNodeIds   = null;
 let activeTask      = null;
 let isDemoMode      = false;
 let gnnOnline       = false;
+let gnnPublicUrl    = null;
 let tsneLoaded      = false;
 let tsnePoints      = null;
 let communityMeta   = null;  // demo community cards
@@ -466,6 +467,12 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function directWakeGNN() {
+  if (!gnnPublicUrl || !/^https?:\/\//.test(gnnPublicUrl)) return;
+  const url = gnnPublicUrl.replace(/\/$/, '') + '/health';
+  fetch(url, { mode: 'no-cors', cache: 'no-store' }).catch(() => {});
+}
+
 async function pollGNNStatus(attempts = 60, delayMs = 5000) {
   for (let i = 0; i < attempts; i++) {
     await checkGNNStatus();
@@ -482,6 +489,7 @@ async function wakeGNN() {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Waking...';
   let warmed = false;
+  directWakeGNN();
   try {
     const r = await fetch('/api/gnn/wake', { method: 'POST' });
     const d = await r.json();
@@ -506,6 +514,7 @@ async function checkGNNStatus() {
   try {
     const r = await fetch('/api/gnn/status');
     const d = await r.json();
+    if (d.gnn_url) gnnPublicUrl = d.gnn_url;
     gnnOnline = d.available;
     const badge = document.getElementById('gnn-badge');
     const txt   = document.getElementById('gnn-badge-txt');
