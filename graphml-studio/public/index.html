@@ -275,6 +275,7 @@ color:var(--text);min-height:100vh;overflow:hidden;}
   <div class="menu-group">
     <span class="menu-label">GNN</span>
     <button class="menu-btn" id="gnn-wake-btn" onclick="wakeGNN()">GNN Online</button>
+    <button class="menu-btn" id="force-fallback-btn" onclick="toggleForceFallback()">Force Fallback</button>
     <button class="menu-btn" id="train-gnn-btn" onclick="trainGNN()" disabled>Train GNN</button>
     <button class="menu-btn" id="task-node-pred" onclick="selectTask('node-pred')" disabled>Node Classify</button>
     <button class="menu-btn" id="task-edge-pred" onclick="selectTask('edge-pred')" disabled>Link Predict</button>
@@ -450,6 +451,7 @@ let tsnePoints      = null;
 let tsneThemes      = null;
 let currentView     = 'graph';
 const MIN_INDUCTIVE_CONNECTIONS = 4;
+let forceFallbackMode = localStorage.getItem('graphml-force-fallback') === '1';
 
 const algoState = { community: 'louvain', centrality: 'betweenness' };
 
@@ -470,6 +472,20 @@ function updateGNNButton() {
   const btn = document.getElementById('gnn-wake-btn');
   if (!btn) return;
   btn.classList.toggle('active', gnnOnline);
+}
+
+function updateFallbackButton() {
+  const btn = document.getElementById('force-fallback-btn');
+  if (!btn) return;
+  btn.classList.toggle('active', forceFallbackMode);
+  btn.textContent = forceFallbackMode ? 'Fallback Demo ✓' : 'Force Fallback';
+}
+
+function toggleForceFallback() {
+  forceFallbackMode = !forceFallbackMode;
+  localStorage.setItem('graphml-force-fallback', forceFallbackMode ? '1' : '0');
+  updateFallbackButton();
+  toast(forceFallbackMode ? 'Fallback demo mode enabled' : 'Fallback demo mode disabled');
 }
 
 function sleep(ms) {
@@ -553,6 +569,7 @@ async function checkGNNStatus() {
     }
   }
   updateGNNButton();
+  updateFallbackButton();
 }
 checkGNNStatus();
 setInterval(checkGNNStatus, 15000);
@@ -839,6 +856,7 @@ async function runGNNNodePred() {
       connections,
       newConnections: connections,
       nodes: graphData.nodes,
+      forceFallback: forceFallbackMode,
     };
     const r = await fetch('/api/predict-node', {
       method: 'POST',
@@ -1211,7 +1229,8 @@ async function runEdgePrediction() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nodes: graphData.nodes, edges: graphData.edges,
                              newNodeId: name, newConnections: conns, topK,
-                             useGNN: gnnOnline })
+                             useGNN: gnnOnline,
+                             forceFallback: forceFallbackMode })
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error);

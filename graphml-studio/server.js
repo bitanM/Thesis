@@ -193,6 +193,19 @@ function proxyToGNN(path, method, body, res, fallbackHandler = null) {
   proxyReq.end();
 }
 
+function shouldForceFallback(req) {
+  const body = req?.body || {};
+  const header = String(req?.headers?.['x-force-fallback'] || '').toLowerCase();
+  return body.forceFallback === true ||
+    body.forceFallback === 'true' ||
+    body.force_fallback === true ||
+    body.force_fallback === 'true' ||
+    header === '1' ||
+    header === 'true' ||
+    req?.query?.forceFallback === '1' ||
+    req?.query?.forceFallback === 'true';
+}
+
 function predictNodeMajorityFallback(payload, res) {
   const { nodes, newConnections, connections } = payload || {};
   const rawConnections = Array.isArray(newConnections)
@@ -585,11 +598,17 @@ app.post('/api/analyze', upload.single('csv'), (req, res) => {
 
 app.post('/api/predict-node', (req, res) => {
   const fallback = () => predictNodeMajorityFallback(req.body, res);
+  if (shouldForceFallback(req)) {
+    return fallback();
+  }
   return proxyOrFallback('/gnn/user/predict-node', 'POST', req.body, res, fallback);
 });
 
 app.post('/api/predict-edge', (req, res) => {
   const fallback = () => predictEdgeAdamicAdarFallback(req.body, res);
+  if (shouldForceFallback(req)) {
+    return fallback();
+  }
   const shouldUseGNN = req.body && req.body.useGNN !== false;
   if (gnnAvailable && shouldUseGNN) {
     return proxyToGNN('/gnn/user/predict-edge', 'POST', req.body, res, fallback);
