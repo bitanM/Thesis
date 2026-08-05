@@ -275,7 +275,6 @@ color:var(--text);min-height:100vh;overflow:hidden;}
   <div class="menu-group">
     <span class="menu-label">GNN</span>
     <button class="menu-btn" id="gnn-wake-btn" onclick="wakeGNN()">GNN Online</button>
-    <button class="menu-btn" id="force-fallback-btn" onclick="toggleForceFallback()">Force Fallback</button>
     <button class="menu-btn" id="train-gnn-btn" onclick="trainGNN()" disabled>Train GNN</button>
     <button class="menu-btn" id="task-node-pred" onclick="selectTask('node-pred')" disabled>Node Classify</button>
     <button class="menu-btn" id="task-edge-pred" onclick="selectTask('edge-pred')" disabled>Link Predict</button>
@@ -451,7 +450,6 @@ let tsnePoints      = null;
 let tsneThemes      = null;
 let currentView     = 'graph';
 const MIN_INDUCTIVE_CONNECTIONS = 4;
-let forceFallbackMode = localStorage.getItem('graphml-force-fallback') === '1';
 
 const algoState = { community: 'louvain', centrality: 'betweenness' };
 
@@ -472,20 +470,6 @@ function updateGNNButton() {
   const btn = document.getElementById('gnn-wake-btn');
   if (!btn) return;
   btn.classList.toggle('active', gnnOnline);
-}
-
-function updateFallbackButton() {
-  const btn = document.getElementById('force-fallback-btn');
-  if (!btn) return;
-  btn.classList.toggle('active', forceFallbackMode);
-  btn.textContent = forceFallbackMode ? 'Fallback Demo ✓' : 'Force Fallback';
-}
-
-function toggleForceFallback() {
-  forceFallbackMode = !forceFallbackMode;
-  localStorage.setItem('graphml-force-fallback', forceFallbackMode ? '1' : '0');
-  updateFallbackButton();
-  toast(forceFallbackMode ? 'Fallback demo mode enabled' : 'Fallback demo mode disabled');
 }
 
 function sleep(ms) {
@@ -509,11 +493,22 @@ function normalizeConnectionList(values) {
 
 async function pollGNNStatus(attempts = 60, delayMs = 5000) {
   for (let i = 0; i < attempts; i++) {
-    await checkGNNStatus();
-    if (gnnOnline) return true;
+    const available = await checkGNNStatus({ activate: true });
+    if (available) return true;
     await sleep(delayMs);
   }
   return false;
+}
+
+function setTierOneMode() {
+  gnnOnline = false;
+  const badge = document.getElementById('gnn-badge');
+  const txt   = document.getElementById('gnn-badge-txt');
+  if (badge && txt) {
+    badge.className = 'gnn-badge';
+    txt.textContent = 'Tier 1 heuristics';
+  }
+  updateGNNButton();
 }
 
 async function wakeGNN() {
@@ -529,6 +524,8 @@ async function wakeGNN() {
     const d = await r.json();
     if (r.ok && d.available) {
       warmed = true;
+      gnnOnline = true;
+      updateGNNButton();
       toast('GNN is online');
     } else {
       toast('Warming GNN service. Render cold starts can take 2-4 minutes.');
@@ -540,16 +537,18 @@ async function wakeGNN() {
   } finally {
     btn.disabled = false;
     btn.textContent = prev || 'GNN Online';
-    if (!warmed) await checkGNNStatus();
+    if (!warmed) await checkGNNStatus({ activate: false });
   }
 }
 
-async function checkGNNStatus() {
+async function checkGNNStatus(options = {}) {
+  const activate = options.activate === true;
   try {
     const r = await fetch('/api/gnn/status');
     const d = await r.json();
     if (d.gnn_url) gnnPublicUrl = d.gnn_url;
-    gnnOnline = d.available;
+    if (activate && d.available) gnnOnline = true;
+    if (!d.available) gnnOnline = false;
     const badge = document.getElementById('gnn-badge');
     const txt   = document.getElementById('gnn-badge-txt');
     if (gnnOnline) {
@@ -557,8 +556,10 @@ async function checkGNNStatus() {
       txt.textContent = 'GNN online';
     } else {
       badge.className = 'gnn-badge';
-      txt.textContent = 'GNN offline';
+      txt.textContent = d.available ? 'Tier 1 heuristics' : 'GNN offline';
     }
+    updateGNNButton();
+    return !!d.available;
   } catch(e) {
     gnnOnline = false;
     const badge = document.getElementById('gnn-badge');
@@ -569,10 +570,12 @@ async function checkGNNStatus() {
     }
   }
   updateGNNButton();
-  updateFallbackButton();
+  return false;
 }
-checkGNNStatus();
-setInterval(checkGNNStatus, 15000);
+setTierOneMode();
+setInterval(() => {
+  if (gnnOnline) checkGNNStatus({ activate: false });
+}, 15000);
 
 // ══════════════════════════════════════════════
 function toggleCommCard(el) {
@@ -856,7 +859,7 @@ async function runGNNNodePred() {
       connections,
       newConnections: connections,
       nodes: graphData.nodes,
-      forceFallback: forceFallbackMode,
+      useGNN: gnnOnline,
     };
     const r = await fetch('/api/predict-node', {
       method: 'POST',
@@ -1229,8 +1232,7 @@ async function runEdgePrediction() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nodes: graphData.nodes, edges: graphData.edges,
                              newNodeId: name, newConnections: conns, topK,
-                             useGNN: gnnOnline,
-                             forceFallback: forceFallbackMode })
+                             useGNN: gnnOnline })
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error);

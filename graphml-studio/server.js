@@ -137,17 +137,6 @@ function probeGNN(timeoutMs) {
   });
 }
 
-function checkGNNService() {
-  probeGNN().then(({ ok }) => {
-    gnnAvailable = ok;
-    if (gnnAvailable) console.log('[GNN] Python service is online ✓');
-  }).catch(() => { gnnAvailable = false; });
-}
-function startGNNServiceMonitor() {
-  checkGNNService();
-  return setInterval(checkGNNService, 30000);
-}
-
 // ── GNN proxy helper ──
 function proxyToGNN(path, method, body, res, fallbackHandler = null) {
   const bodyStr = body ? JSON.stringify(body) : '';
@@ -191,19 +180,6 @@ function proxyToGNN(path, method, body, res, fallbackHandler = null) {
 
   proxyReq.write(bodyStr);
   proxyReq.end();
-}
-
-function shouldForceFallback(req) {
-  const body = req?.body || {};
-  const header = String(req?.headers?.['x-force-fallback'] || '').toLowerCase();
-  return body.forceFallback === true ||
-    body.forceFallback === 'true' ||
-    body.force_fallback === true ||
-    body.force_fallback === 'true' ||
-    header === '1' ||
-    header === 'true' ||
-    req?.query?.forceFallback === '1' ||
-    req?.query?.forceFallback === 'true';
 }
 
 function predictNodeMajorityFallback(payload, res) {
@@ -310,13 +286,6 @@ function predictEdgeAdamicAdarFallback(payload, res) {
     predictions: predictions.slice(0, k),
     heuristic: 'adamic_adar',
   });
-}
-
-function proxyOrFallback(path, method, body, res, fallbackHandler) {
-  if (!gnnAvailable) {
-    return fallbackHandler();
-  }
-  return proxyToGNN(path, method, body, res, () => fallbackHandler());
 }
 
 // ── GNN service status ──
@@ -598,18 +567,15 @@ app.post('/api/analyze', upload.single('csv'), (req, res) => {
 
 app.post('/api/predict-node', (req, res) => {
   const fallback = () => predictNodeMajorityFallback(req.body, res);
-  if (shouldForceFallback(req)) {
-    return fallback();
+  if (req.body && req.body.useGNN === true && gnnAvailable) {
+    return proxyToGNN('/gnn/user/predict-node', 'POST', req.body, res, fallback);
   }
-  return proxyOrFallback('/gnn/user/predict-node', 'POST', req.body, res, fallback);
+  return fallback();
 });
 
 app.post('/api/predict-edge', (req, res) => {
   const fallback = () => predictEdgeAdamicAdarFallback(req.body, res);
-  if (shouldForceFallback(req)) {
-    return fallback();
-  }
-  const shouldUseGNN = req.body && req.body.useGNN !== false;
+  const shouldUseGNN = req.body && req.body.useGNN === true;
   if (gnnAvailable && shouldUseGNN) {
     return proxyToGNN('/gnn/user/predict-edge', 'POST', req.body, res, fallback);
   }
@@ -617,7 +583,6 @@ app.post('/api/predict-edge', (req, res) => {
 });
 
 if (require.main === module) {
-  startGNNServiceMonitor();
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`GraphML Studio running on port ${PORT}`);
