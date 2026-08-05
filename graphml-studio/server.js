@@ -149,7 +149,7 @@ function startGNNServiceMonitor() {
 }
 
 // ── GNN proxy helper ──
-function proxyToGNN(path, method, body, res) {
+function proxyToGNN(path, method, body, res, fallbackHandler = null) {
   const bodyStr = body ? JSON.stringify(body) : '';
   const options = buildGNNOptions(path, method, bodyStr);
 
@@ -157,10 +157,25 @@ function proxyToGNN(path, method, body, res) {
     let data = '';
     proxyRes.on('data', chunk => data += chunk);
     proxyRes.on('end', () => {
+      if ((proxyRes.statusCode || 0) >= 400) {
+        if (typeof fallbackHandler === 'function') {
+          gnnAvailable = false;
+          return fallbackHandler();
+        }
+        res.status(proxyRes.statusCode).json({
+          error: 'GNN service request failed.',
+          status: proxyRes.statusCode,
+        });
+        return;
+      }
       gnnAvailable = true;
       try {
         res.status(proxyRes.statusCode).json(JSON.parse(data));
       } catch (e) {
+        if (typeof fallbackHandler === 'function') {
+          gnnAvailable = false;
+          return fallbackHandler();
+        }
         res.status(500).json({ error: 'Invalid response from GNN service.' });
       }
     });
@@ -168,11 +183,127 @@ function proxyToGNN(path, method, body, res) {
 
   proxyReq.on('error', (err) => {
     gnnAvailable = false;
+    if (typeof fallbackHandler === 'function') {
+      return fallbackHandler();
+    }
     res.status(503).json({ error: 'GNN service connection failed: ' + err.message });
   });
 
   proxyReq.write(bodyStr);
   proxyReq.end();
+}
+
+function predictNodeMajorityFallback(payload, res) {
+  const { nodes, newConnections, connections } = payload || {};
+  const rawConnections = Array.isArray(newConnections)
+    ? newConnections
+    : (Array.isArray(connections) ? connections : []);
+  if (!Array.isArray(nodes) || (!Array.isArray(newConnections) && !Array.isArray(connections))) {
+    return res.status(400).json({ error: 'Invalid payload.' });
+  }
+
+  const nodeById = new Map(nodes.map(n => [String(n.id), n]));
+  const neighborCommunities = rawConnections
+    .map(c => nodeById.get(String(c).trim()))
+    .map(n => Number(n ? n.community : NaN))
+    .filter(n => Number.isFinite(n));
+
+  if (neighborCommunities.length === 0) {
+    return res.json({
+      predictedCommunity: 0,
+      confidence: 0,
+      role: 'Isolated',
+      heuristic: 'majority_vote',
+    });
+  }
+
+  const counts = new Map();
+  neighborCommunities.forEach(c => counts.set(c, (counts.get(c) || 0) + 1));
+  let predComm = 0;
+  let maxVote = 0;
+  counts.forEach((count, commId) => {
+    if (count > maxVote) {
+      maxVote = count;
+      predComm = commId;
+    }
+  });
+
+  return res.json({
+    predictedCommunity: predComm,
+    confidence: ((maxVote / neighborCommunities.length) * 100).toFixed(1),
+    role: rawConnections.length >= 3 ? 'Hub' : 'Member',
+    heuristic: 'majority_vote',
+  });
+}
+
+function predictEdgeAdamicAdarFallback(payload, res) {
+  const { nodes, edges, newNodeId, newConnections, connections, topK } = payload || {};
+  const rawConnections = Array.isArray(newConnections)
+    ? newConnections
+    : (Array.isArray(connections) ? connections : []);
+  if (!Array.isArray(nodes) || !Array.isArray(edges) || !Array.isArray(rawConnections)) {
+    return res.status(400).json({ error: 'Invalid payload.' });
+  }
+
+  const seedSet = new Set(rawConnections.map(c => String(c).trim()).filter(Boolean));
+  const candidateId = String(newNodeId || '').trim();
+  const neighborMap = new Map();
+  const degreeMap = new Map();
+
+  nodes.forEach(node => {
+    const id = String(node.id);
+    neighborMap.set(id, new Set());
+    degreeMap.set(id, Math.max(Number(node.degree) || 0, 0));
+  });
+
+  edges.forEach(e => {
+    const from = String(e.from).trim();
+    const to = String(e.to).trim();
+    if (!from || !to || from === to) return;
+    if (!neighborMap.has(from)) neighborMap.set(from, new Set());
+    if (!neighborMap.has(to)) neighborMap.set(to, new Set());
+    neighborMap.get(from).add(to);
+    neighborMap.get(to).add(from);
+    degreeMap.set(from, (degreeMap.get(from) || 0) + 1);
+    degreeMap.set(to, (degreeMap.get(to) || 0) + 1);
+  });
+
+  const predictions = [];
+  nodes.forEach(node => {
+    const nodeId = String(node.id);
+    if (!nodeId || seedSet.has(nodeId) || nodeId === candidateId) return;
+
+    const neighbors = neighborMap.get(nodeId) || new Set();
+    let score = 0;
+    seedSet.forEach(seedId => {
+      if (!neighbors.has(seedId)) return;
+      const deg = Math.max(Number(degreeMap.get(seedId)) || 0, 1);
+      score += 1 / Math.log(deg + 1);
+    });
+
+    if (Number.isFinite(score) && score > 0) {
+      predictions.push({
+        id: nodeId,
+        score,
+        prob: Math.min(99, Math.round(score * 100)),
+        estWeight: (1 + score * 0.5).toFixed(2),
+      });
+    }
+  });
+
+  const k = Math.max(1, Math.min(20, Number(topK) || 8));
+  predictions.sort((a, b) => b.score - a.score);
+  return res.json({
+    predictions: predictions.slice(0, k),
+    heuristic: 'adamic_adar',
+  });
+}
+
+function proxyOrFallback(path, method, body, res, fallbackHandler) {
+  if (!gnnAvailable) {
+    return fallbackHandler();
+  }
+  return proxyToGNN(path, method, body, res, () => fallbackHandler());
 }
 
 // ── GNN service status ──
@@ -453,63 +584,17 @@ app.post('/api/analyze', upload.single('csv'), (req, res) => {
 });
 
 app.post('/api/predict-node', (req, res) => {
-  // Route to real GNN if available, else toy fallback
-  if (gnnAvailable) {
-    return proxyToGNN('/gnn/user/predict-node', 'POST',
-      { nodeId: req.body.newConnections?.[0] }, res);
-  }
-  // Toy fallback (original implementation)
-  const { nodes, newConnections } = req.body || {};
-  if (!Array.isArray(nodes) || !Array.isArray(newConnections))
-    return res.status(400).json({ error: 'Invalid payload.' });
-  const nodeById = new Map(nodes.map(n => [String(n.id), n]));
-  const neighborCommunities = newConnections
-    .map(c => nodeById.get(String(c).trim()))
-    .map(n => Number(n ? n.community : NaN))
-    .filter(n => Number.isFinite(n));
-  if (neighborCommunities.length === 0)
-    return res.json({ predictedCommunity: 0, confidence: 0, role: 'Isolated' });
-  const counts = new Map();
-  neighborCommunities.forEach(c => counts.set(c, (counts.get(c)||0)+1));
-  let predComm = 0, maxVote = 0;
-  counts.forEach((count, commId) => { if (count > maxVote) { maxVote=count; predComm=commId; } });
-  res.json({
-    predictedCommunity: predComm,
-    confidence: ((maxVote/neighborCommunities.length)*100).toFixed(1),
-    role: newConnections.length >= 3 ? 'Hub' : 'Member',
-  });
+  const fallback = () => predictNodeMajorityFallback(req.body, res);
+  return proxyOrFallback('/gnn/user/predict-node', 'POST', req.body, res, fallback);
 });
 
 app.post('/api/predict-edge', (req, res) => {
-  // Route to GNN service if available (inductive link prediction)
-  if (gnnAvailable && req.body && req.body.useGNN) {
-    const { newNodeId, newConnections, topK } = req.body || {};
-    return proxyToGNN('/gnn/user/predict-edge', 'POST',
-      { nodeId: newNodeId, connections: newConnections, topK }, res);
+  const fallback = () => predictEdgeAdamicAdarFallback(req.body, res);
+  const shouldUseGNN = req.body && req.body.useGNN !== false;
+  if (gnnAvailable && shouldUseGNN) {
+    return proxyToGNN('/gnn/user/predict-edge', 'POST', req.body, res, fallback);
   }
-  const { nodes, edges, newNodeId, newConnections, topK } = req.body || {};
-  if (!Array.isArray(nodes)||!Array.isArray(edges)||!Array.isArray(newConnections))
-    return res.status(400).json({ error: 'Invalid payload.' });
-  const validConns = new Set(newConnections.map(c => String(c).trim()).filter(Boolean));
-  let predictions = [];
-  nodes.forEach(node => {
-    const nodeId = String(node.id);
-    if (validConns.has(nodeId)) return;
-    let shared = 0;
-    edges.forEach(e => {
-      if ((String(e.from)===nodeId && validConns.has(String(e.to))) ||
-          (String(e.to)===nodeId && validConns.has(String(e.from)))) shared++;
-    });
-    const safeDeg = Math.max(Number(node.degree)||1, 1);
-    const score = shared / Math.log(safeDeg + 2);
-    if (Number.isFinite(score) && score > 0)
-      predictions.push({ id: nodeId, score,
-        prob: Math.min(95, Math.round(score*100+30)),
-        estWeight: (1+score*0.5).toFixed(2) });
-  });
-  const k = Math.max(1, Math.min(20, Number(topK)||8));
-  predictions.sort((a,b) => b.score - a.score);
-  res.json({ predictions: predictions.slice(0, k) });
+  return fallback();
 });
 
 if (require.main === module) {

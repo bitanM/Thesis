@@ -820,21 +820,27 @@ async function trainGNN(mode = 'full') {
 }
 
 async function runGNNNodePred() {
-  const term = document.getElementById('gnn-node-input').value.trim().toLowerCase();
+  const term = document.getElementById('gnn-node-input').value.trim();
   const res  = document.getElementById('node-pred-results');
   const connStr = document.getElementById('gnn-node-connections')?.value || '';
   const connections = normalizeConnectionList(connStr.split(','));
   if (!term) return toast('⚠ Enter a word to classify.');
-  if (!gnnOnline) return toast('⚠ GNN service offline.');
   if (!hasGraphNode(term) && connections.length < MIN_INDUCTIVE_CONNECTIONS) {
     return toast(`Need at least ${MIN_INDUCTIVE_CONNECTIONS} known connections for unseen nodes.`);
   }
 
-  res.innerHTML = `<div style="padding:1rem"><span class="spinner"></span> Running GraphSAGE inference…</div>`;
+  const modeLabel = gnnOnline ? 'Running GraphSAGE inference…' : 'Running majority-vote fallback…';
+  res.innerHTML = `<div style="padding:1rem"><span class="spinner"></span> ${modeLabel}</div>`;
 
   try {
-    const payload = connections.length ? { nodeId: term, connections } : { nodeId: term };
-    const r = await fetch('/api/gnn/user/predict-node', {
+    const payload = {
+      nodeId: term,
+      newNodeId: term,
+      connections,
+      newConnections: connections,
+      nodes: graphData.nodes,
+    };
+    const r = await fetch('/api/predict-node', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -850,7 +856,7 @@ async function runGNNNodePred() {
       : 'Metrics unavailable for this model';
     const trainingLine = training
       ? `Mode: ${training.mode || 'full'} | Eval train: ${Math.round(Number(training.nc_train_frac || 0) * 100)}% | Inference: ${training.nc_inference_scope === 'full_graph' ? 'full graph' : 'split model'}`
-      : 'Model: GraphSAGE | 3-layer | weighted structural features';
+      : (gnnOnline ? 'Model: GraphSAGE | 3-layer | weighted structural features' : 'Fallback: majority-vote community heuristic');
     const top5Html = d.top5 ? d.top5.map(t => `
       <div class="top5-row">
         <span class="top5-comm">C${t.community}</span>
